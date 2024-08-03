@@ -12,25 +12,27 @@ fig_save = 1;
 
 @with_kw mutable struct model
     J = 1000
-    sig = 0.3
+    sig = 0.02
     zeta = 1.05
     mu = sig^2*(1-zeta)/2
-    lzg = range(log(0.1),10,length=J)
+    lzg = range(log(0.01),10,length=J)
     zg = exp.(lzg)
     dz = diff(zg)
     alph = 0.64
-    cf = 0.1
+    cf = 4
     r = 0.05
     L = 1
     M = 1
     underv = 0.0
-    xi = 1.5
-    psig = entry_dist(xi,zg,Na)[1]
-    ce = 1
-    eta = 0.02
+    xi = 1.1
+    psig =  entry_dist(xi,zg)[1]
+    tilde_psig = entry_dist(xi,zg)[2]
+    ce = 10000
+    eta = 0.0
     dt = 2
     tg = 0:dt:300
     T = length(tg)
+    nu = 1;
 end
 
 include("subfunctions.jl")
@@ -39,37 +41,36 @@ include("functions_transitions.jl")
 include("plot_functions.jl")
 
 
+param = model()
+@unpack_model param
+ss_result = solve_w(param; calibration=0 )
 
 
-function wrapper_eqm(param)
-    @unpack_model param
-    HJB_result = solve_w(param; calibration=1)
-    ng = HJB_result.ng
-    underz_index = HJB_result.underz_index
-    ce_calibrate = HJB_result.ce_calibrate
-    param.ce = ce_calibrate
-    tilde_hatg_za,A_store = solve_stationary_distribution(param,underz_index)
-    tilde_hatg_za_mat = reshape(tilde_hatg_za,J,Na)
-    tilde_hatg = sum(tilde_hatg_za_mat,dims=2)
-    tilde_hatg_age = sum(tilde_hatg_za_mat,dims=1)'
-    m = L/sum(tilde_hatg.*ng)
-    tilde_g = tilde_hatg.*m
-    entry_rate = sum(m.*tilde_psig[underz_index:end])/sum(tilde_g)
-    Average_size = sum(tilde_hatg.*ng)/sum(tilde_hatg)
-    Average_age = sum(tilde_hatg_age.*ag)/sum(tilde_hatg_age)
-    Average_size_by_age = zeros(Na)
-    Exit_rate_by_age = zeros(Na)
-    for ia = 1:Na
-        Average_size_by_age[ia] = sum(tilde_hatg_za_mat[:,ia].*ng)/sum(tilde_hatg_za_mat[:,ia])
-        if ia < Na
-            Exit_rate_by_age[ia] = (tilde_hatg_age[ia] - tilde_hatg_age[ia+1]*(1+eta))/tilde_hatg_age[ia]
-        end
+w_ss = ss_result.w
+v_ss = ss_result.v
+underz_ss = ss_result.underz
+m = ss_result.m
+tildeg = ss_result.tildeg
+sum(tildeg)
+
+
+dw = 0.01;
+v_path = zeros(J,length(tg))
+dv_path = zeros(J,length(tg))
+dunderz_path = zeros(length(tg))
+for i_t = length(tg):-1:1
+    if i_t == length(tg)
+        w_in = w_ss + dw;
+        v_in = copy(v_ss)
+    else
+        w_in = copy(w_ss);
+        v_in = copy(v_path[:,i_t+1])
     end
-
-    return entry_rate, Average_size,Average_age,Average_size_by_age,Exit_rate_by_age
+    v,underz_index,underz,ng = solve_HJB_VI_transition(param,w_in,v_in)
+    v_path[:,i_t] = v
+    dv_path[:,i_t] = (v .- v_ss)/dw
+    dunderz_path[i_t] = (underz .- underz_ss)/dw;
 end
-
-
 
 
 ##############################################################################

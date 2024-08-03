@@ -1,6 +1,6 @@
 
-function entry_dist(xi,zg,Na)
-    d = Pareto(xi, 0.1)
+function entry_dist(xi,zg)
+    d = Pareto(xi, zg[1])
     dz = diff(zg)
     psig = pdf(d,zg)
     tilde_psig = copy(psig)
@@ -19,9 +19,7 @@ function entry_dist(xi,zg,Na)
         end
     end
     tilde_psig = tilde_psig/sum(tilde_psig)
-    tilde_psig_na = zeros(J*Na,1)
-    tilde_psig_na[1:J] = tilde_psig;
-    return psig,tilde_psig,tilde_dn,tilde_psig_na
+    return psig,tilde_psig
 end
 function populate_A_HJB(param)
     @unpack_model param
@@ -44,77 +42,6 @@ function populate_A_HJB(param)
     end 
     return A
 end
-function populate_A_KFE(param)
-    @unpack_model param
-    A_row = ones(Int64,J*Na*10)
-    A_col = ones(Int64,J*Na*10)
-    A_val = zeros(Float64,J*Na*10)
-    A = spzeros(length(zg),length(zg))
-    
-    k =0 
-    for (iz,z) in enumerate(zg)
-        for (ia,a) in enumerate(ag)
-            dz_plus = dz[min(iz,J-1)]
-            dz_minus = dz[max(iz-1,1)]
-            
-            if mu > 0
-                k += 1
-                A_row[k] = compute_za_index(param,iz,ia)
-                A_col[k] = compute_za_index(param,min(iz+1,J),ia)
-                A_val[k] = mu.*z/dz_plus;
-
-                k += 1
-                A_row[k] = compute_za_index(param,iz,ia)
-                A_col[k] = compute_za_index(param,iz,ia)
-                A_val[k] = -mu.*z/dz_plus;
-            else
-                k += 1
-                A_row[k] = compute_za_index(param,iz,ia)
-                A_col[k] = compute_za_index(param,iz,ia)
-                A_val[k] = mu.*z/dz_plus;
-
-                k += 1
-                A_row[k] = compute_za_index(param,iz,ia)
-                A_col[k] = compute_za_index(param,max(iz-1,1),ia)
-                A_val[k] = -mu.*z/dz_plus;
-            end
-            
-            denom = 1/2*(dz_plus + dz_minus)*dz_plus*dz_minus;
-
-            k += 1
-            A_row[k] = compute_za_index(param,iz,ia)
-            A_col[k] = compute_za_index(param,iz,ia)
-            A_val[k] = - 1/2*(dz_plus + dz_minus).*(sig*z)^2/denom;
-
-            k += 1
-            A_row[k] = compute_za_index(param,iz,ia)
-            A_col[k] = compute_za_index(param,max(iz-1,1),ia)
-            A_val[k] = 1/2*dz_plus.*(sig*z)^2/denom;
-
-            k += 1
-            A_row[k] = compute_za_index(param,iz,ia)
-            A_col[k] = compute_za_index(param,min(iz+1,J),ia)
-            A_val[k] = 1/2*dz_minus.*(sig*z)^2/denom;
-            
-            da_plus = da[min(ia,Na-1)]
-            da_minus = da[max(ia-1,1)]
-
-            k += 1
-            A_row[k] = compute_za_index(param,iz,ia)
-            A_col[k] = compute_za_index(param,iz,min(ia+1,Na))
-            A_val[k] = 1.0/da_plus;
-
-            k += 1
-            A_row[k] = compute_za_index(param,iz,ia)
-            A_col[k] = compute_za_index(param,iz,ia)
-            A_val[k] = -1.0/da_minus;
-        end
-    end 
-
-    A = sparse(A_row,A_col,A_val,J*Na,J*Na)
-    return A
-end
-
 function solve_HJB_VI(param,w)
     @unpack_model param
     A = populate_A_HJB(param)
@@ -131,13 +58,15 @@ function solve_HJB_VI(param,w)
     first_positive = findfirst(x .> 0 )
     if isnothing(first_positive)
         underz_index = J
+        underz = zg[J]
     elseif first_positive == 1
         underz_index = 1
+        underz = zg[1]
     else
         underz_index = findfirst(x .> 0 )
         v_noexit = B*v - pig
         v_noexit_interp = linear_interpolation(zg, v_noexit - (v .-underv))
-        underz = find_zero(v_noexit_interp, zg[1])
+        underz = find_zero(v_noexit_interp, (zg[1],zg[end]))
     end
     return v,underz_index,underz,ng
 end
@@ -147,65 +76,60 @@ function solve_w(param; calibration=0 )
     w_ub = 10;
     w_lb = 0;
     w = (w_ub + w_lb)/2
-    err_free_entry = 100
+    excess_labor = 100
     iter = 0
     underz_index = 0
     v = 0
     ng = 0
-    ce_calibrate = 0
     underz = 0
-    while iter < 1000 && abs(err_free_entry) > 1e-6
-        if calibration != 0
-            w = 1;
-        else
-            w = (w_ub + w_lb)/2
-        end
+    m = 0;
+    tildeg = [];
+    while iter < 1000 && abs(excess_labor) > 1e-6
+        w = (w_ub + w_lb)/2
         v,underz_index,underz,ng = solve_HJB_VI(param,w)
-        err_free_entry = sum(v.*tilde_psig) - ce
-        if err_free_entry > 0
+        m = compute_entry(param,v,underz)
+        hattildeg = solve_stationary_distribution(param,underz)[1]
+        tildeg = m.*hattildeg;
+        excess_labor = sum(ng.*tildeg) - L
+
+        if excess_labor > 0
             w_lb = w
         else
             w_ub = w
         end
-        println("iter: ",iter," w: ",w," err_free_entry: ",err_free_entry)
+        println("iter: ",iter," w: ",w," Excess labor demand: ",excess_labor)
         iter += 1
-        if calibration != 0
-            ce_calibrate = sum(v.*tilde_psig)
-            break
-        end
     end
     @assert iter < 1000
     
-    return (w = w, v = v, underz_index  = underz_index,ng=ng,underz=underz,ce_calibrate = ce_calibrate)
+    return (w = w, v = v, underz_index  = underz_index,ng=ng,underz=underz,
+    m = m,tildeg=tildeg)
 end
 
 function compute_entry(param,v,underz)
     @unpack_model param
     underz_grid_down,weight_down,weight_up = closest_index(zg, underz)
-    tilde_psig[1:(underz_grid_down-1)] = 0
+    tilde_psig[1:(underz_grid_down-1)] .= 0
     tilde_psig[underz_grid_down] = weight_down*tilde_psig[underz_grid_down]
-    M*(sum(v.*tilde_psig)./ce)^(nu)
+    m = M*(sum(v.*tilde_psig)./ce)^(nu)
 
-
+    return m 
 end
 
 function solve_stationary_distribution(param,underz)
     @unpack_model param
-    A = populate_A_KFE(param)
+    A = populate_A_HJB(param)
     A_store = copy(A)
-    A = spdiagm(-eta*ones(J*Na)) + A
-    B = -(tilde_psig_na); 
+    A = spdiagm(-eta*ones(J)) + A
+    B = -(tilde_psig); 
     underz_grid_down,weight_down,weight_up = closest_index(zg, underz) 
-    for ia = 1:Na
-        underz_set = compute_za_index(param,1:(underz_grid_down-1),ia)
-        underz_ia_index = compute_za_index(param,1:(underz_grid_down-1),ia)
-        A[underz_set,:] .= 0;
-        A[:,underz_set] .= 0;
-        A[underz_set,underz_set] = I(length(underz_set));
-        A[:,underz_ia_index] = weight_down.*A[:,underz_ia_index]
-        B[underz_set] .= 0;
-        B[underz_ia_index] = weight_down*B[underz_ia_index];
-    end
+    underz_set = 1:(underz_grid_down-1);
+    A[underz_set,:] .= 0;
+    A[:,underz_set] .= 0;
+    A[underz_set,underz_set] = I(length(underz_set));
+    A[:,underz_grid_down] = weight_down.*A[:,underz_grid_down]
+    B[underz_set] .= 0;
+    B[underz_grid_down] = weight_down*B[underz_grid_down];
     g = (A')\B;
     return g,A_store
 end
