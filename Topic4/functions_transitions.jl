@@ -6,7 +6,6 @@ function solve_HJB_VI_transition(param,w,v_ahead)
     pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
     q = - (pig + v_ahead./dt)+ underv.*B*ones(length(zg))
     result = LCPsolve.solve!(LCP(B,q),max_iter=1000)
-    println(result.converged)
     x = result.sol
     v = x .+ underv
    
@@ -25,24 +24,94 @@ function solve_HJB_VI_transition(param,w,v_ahead)
     return v,underz_index,underz,ng
 end
 
-
-function solve_transition_distribution(param,underz_index,g0,etapath)
+function HJB_backward(param,ss_result,var,dx)
     @unpack_model param
-    A_store = populate_A_KFE(param)
-    tilde_hatgpath = zeros(J*Na,T)
-    tilde_hatgpath[:,1] = g0;
-    for t = 2:T
-        A = spdiagm(-etapath[t]*ones(J*Na)) + A_store
-        B = (tilde_psig_na);  
-        for ia = 1:Na
-            underz_set = compute_za_index(param,1:(underz_index-1),ia)
-            A[underz_set,:] .= 0;
-            A[:,underz_set] .= 0;
-            #A[underz_set,underz_set] = I(length(underz_set));
-            B[underz_set] .= 0;
-        end
-        tilde_hatgpath[:,t] = (I - dt*A')\(tilde_hatgpath[:,t-1] + dt*B);
+    if var == "w"
+        dw = copy(dx);
+    else
+        dw = 0.0;
     end
+    w_ss = ss_result.w
+    v_ss = ss_result.v
+    v_path = zeros(J,length(tg))
+    underz_path = zeros(length(tg))
+    ng_path = zeros(J,length(tg))
+    m_path = zeros(length(tg))
+    for i_t = length(tg):-1:1
+        if i_t == length(tg)
+            w_in = w_ss + dw;
+            v_in = copy(v_ss)
+        else
+            w_in = copy(w_ss);
+            v_in = copy(v_path[:,i_t+1])
+        end
+        v,underz_index,underz,ng = solve_HJB_VI_transition(param,w_in,v_in)
+        v_path[:,i_t] = v
+        m_path[i_t] = compute_entry(param,v,underz)
+        underz_path[i_t] = underz;
+        ng_path[:,i_t] = ng;
+    end
+    return v_path,underz_path,m_path,ng_path
+end
 
-    return tilde_hatgpath
+function solve_transition_distribution(param,g0,underz_in,eta_in,m_in)
+    @unpack_model param
+    A,B = populate_A_KFE(param,underz_in,eta_in)
+    g1 = (I - dt*A')\(g0 + m_in*dt*B);
+
+    return g1
+end
+
+function Compute_Sequence_Space_Jacobian(param,ss_result,var;dx=0.001)
+    @unpack_model param
+
+    underz_ss = ss_result.underz
+    g_ss = ss_result.tildeg
+    ng_ss = ss_result.ng
+    A_ss,B_ss = populate_A_KFE(param,underz_ss,eta)
+
+
+    dx_ghost = 0.0;
+    v_ghost_path, underz_ghost_path,m_ghost_path, ng_ghost_path = HJB_backward(param,ss_result,var,dx_ghost)
+    v_path, underz_path,m_path,ng_path = HJB_backward(param,ss_result,var,dx)
+    
+    
+    dn_path = (ng_path .- ng_ghost_path)/dx
+    
+    g1_ghost = zeros(J,length(tg))
+    g1 = copy(g1_ghost)
+    dg = copy(g1_ghost)
+    N_Jacobian = zeros(length(tg),length(tg))
+    for s = 1:length(tg)
+        b_index = length(tg) -s + 1;
+        
+        if var == "eta" && s == 1
+            eta_in = eta + dx;
+        else
+            eta_in = copy(eta)
+        end
+        
+        underz_in = underz_ghost_path[b_index]
+        m_in = m_ghost_path[b_index]
+        g1_ghost[:,s] = solve_transition_distribution(param,g_ss,underz_in,eta,m_in)
+    
+        underz_in = underz_path[b_index]
+        m_in = m_path[b_index]
+        g1[:,s] = solve_transition_distribution(param,g_ss,underz_in,eta_in,m_in)
+    
+        dg[:,s] = (g1[:,s] - g1_ghost[:,s])/dx
+    
+        N_Jacobian[1,s] = sum(dn_path[:,b_index].*g_ss) + sum(ng_ss.*dg[:,s])
+    
+        dg_t = dg[:,s];
+        for t = 2:length(tg)
+            dg_t = (I - dt*A_ss')\dg_t
+            if s > 1
+                N_Jacobian[t,s] = N_Jacobian[t-1,s-1] + sum(ng_ss.*dg_t)
+            else
+                N_Jacobian[t,s] = sum(ng_ss.*dg_t)
+            end
+        end
+    end
+    return N_Jacobian
 end

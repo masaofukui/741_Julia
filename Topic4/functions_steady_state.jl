@@ -1,6 +1,6 @@
 
-function entry_dist(xi,zg)
-    d = Pareto(xi, zg[1])
+function entry_dist(xi,zg,entry_zlow)
+    d = Pareto(xi, entry_zlow)
     dz = diff(zg)
     psig = pdf(d,zg)
     tilde_psig = copy(psig)
@@ -21,6 +21,10 @@ function entry_dist(xi,zg)
     tilde_psig = tilde_psig/sum(tilde_psig)
     return psig,tilde_psig
 end
+
+
+
+
 function populate_A_HJB(param)
     @unpack_model param
     A = spzeros(length(zg),length(zg))
@@ -50,7 +54,7 @@ function solve_HJB_VI(param,w)
     pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
     q = -pig + underv.*B*ones(length(zg))
     result = LCPsolve.solve!(LCP(B,q),max_iter=1000)
-    println(result.converged)
+    #println(result.converged)
     x = result.sol
     v = x .+ underv
    
@@ -88,7 +92,7 @@ function solve_w(param; calibration=0 )
         w = (w_ub + w_lb)/2
         v,underz_index,underz,ng = solve_HJB_VI(param,w)
         m = compute_entry(param,v,underz)
-        hattildeg = solve_stationary_distribution(param,underz)[1]
+        hattildeg = solve_stationary_distribution(param,underz)
         tildeg = m.*hattildeg;
         excess_labor = sum(ng.*tildeg) - L
 
@@ -116,11 +120,9 @@ function compute_entry(param,v,underz)
     return m 
 end
 
-function solve_stationary_distribution(param,underz)
-    @unpack_model param
+function populate_A_KFE(param,underz,eta_in)
     A = populate_A_HJB(param)
-    A_store = copy(A)
-    A = spdiagm(-eta*ones(J)) + A
+    A = spdiagm(-eta_in*ones(J)) + A
     B = -(tilde_psig); 
     underz_grid_down,weight_down,weight_up = closest_index(zg, underz) 
     underz_set = 1:(underz_grid_down-1);
@@ -130,6 +132,12 @@ function solve_stationary_distribution(param,underz)
     A[:,underz_grid_down] = weight_down.*A[:,underz_grid_down]
     B[underz_set] .= 0;
     B[underz_grid_down] = weight_down*B[underz_grid_down];
+    return A,B
+end
+
+function solve_stationary_distribution(param,underz)
+    @unpack_model param
+    A,B = populate_A_KFE(param,underz,eta);
     g = (A')\B;
-    return g,A_store
+    return g
 end
