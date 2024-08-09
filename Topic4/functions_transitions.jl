@@ -1,9 +1,9 @@
-function solve_HJB_VI_transition(param,w,v_ahead)
+function solve_HJB_VI_transition(param,v_ahead,w,Z_in)
     @unpack_model param
     A = populate_A_HJB(param)
     B = ((r+1/dt).*I - A);
-    ng = (alph./w)^(1/(1-alph)).*zg
-    pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
+    ng = (alph./w)^(1/(1-alph)).*(Z_in.*zg)
+    pig = (Z_in.*zg).^(1-alph).*ng.^alph .- w.*ng .- cf
     q = - (pig + v_ahead./dt)+ underv.*B*ones(length(zg))
     result = LCPsolve.solve!(LCP(B,q),max_iter=1000)
     x = result.sol
@@ -24,12 +24,17 @@ function solve_HJB_VI_transition(param,w,v_ahead)
     return v,underz_index,underz,ng
 end
 
-function HJB_backward(param,ss_result,var,dx)
+function HJB_backward(param,ss_result,dvar,dx)
     @unpack_model param
-    if var == "w"
+    if dvar == "w"
         dw = copy(dx);
+        dZ = 0.0;
+    elseif dvar == "Z"
+        dw = 0.0;
+        dZ = copy(dx);
     else
         dw = 0.0;
+        dZ = 0.0;
     end
     w_ss = ss_result.w
     v_ss = ss_result.v
@@ -40,12 +45,14 @@ function HJB_backward(param,ss_result,var,dx)
     for i_t = length(tg):-1:1
         if i_t == length(tg)
             w_in = w_ss + dw;
+            Z_in = Z + dZ;
             v_in = copy(v_ss)
         else
             w_in = copy(w_ss);
+            Z_in = copy(Z);
             v_in = copy(v_path[:,i_t+1])
         end
-        v,underz_index,underz,ng = solve_HJB_VI_transition(param,w_in,v_in)
+        v,underz_index,underz,ng = solve_HJB_VI_transition(param,v_in,w_in,Z_in)
         v_path[:,i_t] = v
         m_path[i_t] = compute_entry(param,v,underz)
         underz_path[i_t] = underz;
@@ -62,7 +69,7 @@ function solve_transition_distribution(param,g0,underz_in,eta_in,m_in)
     return g1
 end
 
-function Compute_Sequence_Space_Jacobian(param,ss_result,var;dx=0.001)
+function Compute_Sequence_Space_Jacobian(param,ss_result,dvar;dx=0.001)
     @unpack_model param
 
     underz_ss = ss_result.underz
@@ -72,11 +79,13 @@ function Compute_Sequence_Space_Jacobian(param,ss_result,var;dx=0.001)
 
 
     dx_ghost = 0.0;
-    v_ghost_path, underz_ghost_path,m_ghost_path, ng_ghost_path = HJB_backward(param,ss_result,var,dx_ghost)
-    v_path, underz_path,m_path,ng_path = HJB_backward(param,ss_result,var,dx)
+    v_ghost_path, underz_ghost_path,m_ghost_path, ng_ghost_path = HJB_backward(param,ss_result,dvar,dx_ghost)
+    v_path, underz_path,m_path,ng_path = HJB_backward(param,ss_result,dvar,dx)
     
     
     dn_path = (ng_path .- ng_ghost_path)/dx
+
+
     
     g1_ghost = zeros(J,length(tg))
     g1 = copy(g1_ghost)
@@ -85,7 +94,7 @@ function Compute_Sequence_Space_Jacobian(param,ss_result,var;dx=0.001)
     for s = 1:length(tg)
         b_index = length(tg) -s + 1;
         
-        if var == "eta" && s == 1
+        if dvar == "eta" && s == 1
             eta_in = eta + dx;
         else
             eta_in = copy(eta)

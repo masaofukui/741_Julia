@@ -11,7 +11,7 @@ fig_save = 1;
 
 
 @with_kw mutable struct model
-    J = 1000
+    J = 500
     sig = 0.2
     zeta = 1.05
     mu = sig^2*(1-zeta)/2
@@ -33,7 +33,9 @@ fig_save = 1;
     dt = 10
     tg = 0:dt:2000
     T = length(tg)
-    nu = 1;
+    nu = 1
+    Z = 1
+    rhoZ = 0.9;
 end
 
 include("subfunctions.jl")
@@ -60,6 +62,8 @@ N_Jacobian_w = Compute_Sequence_Space_Jacobian(param,ss_result,"w")
 
 N_Jacobian_eta = Compute_Sequence_Space_Jacobian(param,ss_result,"eta")
 
+N_Jacobian_Z = Compute_Sequence_Space_Jacobian(param,ss_result,"Z")
+
 
 plot(tg,N_Jacobian_w[:,1])
 
@@ -67,7 +71,11 @@ plot(tg,N_Jacobian_eta[:,1])
 
 etapath = zeros(length(tg))
 etapath[1:1] .= 1.0;
+
+
+Zpath = rhoZ.^(tg.-1)
 dwpath = - N_Jacobian_w\N_Jacobian_eta*etapath;
+dwpath = - N_Jacobian_w\N_Jacobian_Z*Zpath;
 
 plot(tg,etapath)
 plot(tg,dwpath)
