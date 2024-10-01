@@ -44,22 +44,39 @@ function populate_A(param)
     return A
 end
 
+
+function Howard_Algorithm(param,B,pig,underv)
+    @unpack_model param
+    iter = 1;
+    vold = zeros(length(zg));
+    vnew = copy(vold);
+    while iter < 100 
+        val_noexit =  (B*vold .- pig);
+        val_exit = vold  .- underv
+        exit_or_not =val_noexit  .> val_exit;
+        Btilde = B.*(1 .-exit_or_not) + I*(exit_or_not)
+        q = pig.*(1 .-exit_or_not) + underv.*(exit_or_not)
+        vnew = Btilde\q;
+        if norm(vnew - vold) < 1e-6
+            break
+        end
+        vold = copy(vnew)
+    end
+    return vnew
+end
+
 function solve_HJB_VI(param,w)
     @unpack_model param
     A = populate_A(param)
     B = (r.*I - A);
     ng = (alph./w)^(1/(1-alph)).*zg
     pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
-    q = -pig + underv.*B*ones(length(zg))
-    result = solve!(LCP(B,q),max_iter=1000)
-    println(result.converged)
-    x = result.sol
-    v = x .+ underv
-    first_positive = findfirst(x .> 0 )
+    v = solve_using_Howard(param,B,pig,underv)
+    first_positive = findfirst(v .> vold )
     if isnothing(first_positive)
         underz_index = J
     else
-        underz_index = findfirst(x .> 0 )
+        underz_index = first_positive
     end
     return v,underz_index,ng
 end
@@ -106,7 +123,7 @@ end
 param = model()
 @unpack_model param
 
-HJB_result = solve_w(param)
+@time HJB_result = solve_w(param)
 v = HJB_result.v
 w = HJB_result.w
 ng = HJB_result.ng

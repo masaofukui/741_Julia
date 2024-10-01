@@ -11,6 +11,10 @@ using LinearAlgebra
     w = 1
     cf = 0.1
     r = 0.05
+    underv = 0
+    ng = (alph./w)^(1/(1-alph)).*zg
+    pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
+    max_iter = 1e3
 end
 function populate_A(param)
     @unpack_model param
@@ -33,8 +37,6 @@ end
 function solve_HJB(param)
     @unpack_model param
     A = populate_A(param)
-    ng = (alph./w)^(1/(1-alph)).*zg
-    pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
     v = (r.*I - A)\pig;
     return v
 end
@@ -56,23 +58,41 @@ display(plt_v)
 savefig(plt_v, "./figure/HJB_v_noexit.pdf")
 
 
-using LCPsolve
-function solve_HJB_VI(param,underv)
+function Howard_Algorithm(param,A)
+    @unpack_model param
+    B = (r.*I - A);
+    iter = 1;
+    vold = zeros(length(zg));
+    vnew = copy(vold);
+    while iter < max_iter
+        val_noexit =  (B*vold .- pig);
+        val_exit = vold  .- underv
+        exit_or_not =val_noexit  .> val_exit;
+        Btilde = B.*(1 .-exit_or_not) + I(J) .*(exit_or_not)
+        q = pig.*(1 .-exit_or_not) + underv.*(exit_or_not)
+        vnew = Btilde\q;
+        if norm(vnew - vold) < 1e-6
+            break
+        end
+        vold = copy(vnew)
+        iter += 1
+    end
+    @assert iter < max_iter "Howard Algorithm did not converge"
+    return vnew,exit_or_not
+end
+
+function solve_HJB_VI(param)
     @unpack_model param
     A = populate_A(param)
-    B = r.*I - A;
-    ng = (alph./w)^(1/(1-alph)).*zg
-    pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
-    q = -pig + underv.*B*ones(length(zg))
-    result = solve!(LCP(B,q))
-    @assert result.converged
-    x = result.sol
-    v = x .+ underv
-    underz = zg[findfirst(x .> 0 )]
+    v,exist_or_not = Howard_Algorithm(param,A)
+    underz_index = findlast(exist_or_not .>0 )
+    if isnothing(underz_index)
+        underz_index = J
+    end
+    underz = zg[underz_index]
     return v,underz
 end
-underv=0.0
-v_exit, underz = solve_HJB_VI(param,underv)
+v_exit,underz = solve_HJB_VI(param)
 
 plt_v = plot(zg,v_exit,lw=6,label=:none)
 vline!([underz], label="Exit threshold",color=colplot_red[2],lw=3,linestyle=:dash)

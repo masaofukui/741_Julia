@@ -13,16 +13,14 @@ function populate_A(param)
     A = spzeros(length(ng),length(ng))
     for (i,n) in enumerate(ng)
         A[i,i] += -(sig*n)^2/dn^2;
-        A[i,max(i-1,1)] += 1/2*(sig*ng[max(i-1,1)])^2/dn^2;
-        A[i,min(i+1,J)] += 1/2*(sig*ng[min(i+1,J)])^2/dn^2;
-        if -mu > 0
-            A[i,i] += mu*n/dn;
-            i < J ? A[i,i+1] += - mu*ng[i+1]/dn : nothing;
-            i == 1 ?  A[i,i] += -mu*n/dn : nothing; #entry
-        else
+        A[i,min(i+1,J)] += 1/2*(sig*n)^2/dn^2;
+        A[i,max(i-1,1)] += 1/2*(sig*n)^2/dn^2;
+        if mu > 0
             A[i,i] += -mu*n/dn;
-            i > 1 ?  A[i,i-1] += mu*ng[i-1]/dn : nothing;
-            i == J ? A[i,i] += mu*n/dn : nothing; #reflecting barrier
+            A[i,min(i+1,J)] += mu*n/dn;
+        else
+            A[i,i] += mu*n/dn;
+            A[i,max(i-1,1)] += -mu*n/dn; 
         end
     end 
     return A
@@ -33,7 +31,7 @@ function solve_stationary_distribution(param)
     B = zeros(length(ng));  
     B[end] = 1;
     A[end,:] = ones(1,length(ng))*dn;
-    g = A\B;
+    g = A'\B;
     return g
 end
 param = model()
@@ -87,7 +85,7 @@ A = populate_A(param);
 gpath = zeros(J,T);
 gpath[:,1] = ones(J)./(J*dn);
 for t = 2:T
-    gpath[:,t] = (I - dt*A)\gpath[:,t-1]
+    gpath[:,t] = (I - dt*A')\gpath[:,t-1]
 end
 
 plt_transition = plot(ng,gpath[:,1],label="t = "*string(0),lw=6,color=colplot_blue[1])
