@@ -58,9 +58,8 @@ display(plt_v)
 savefig(plt_v, "./figure/HJB_v_noexit.pdf")
 
 
-function Howard_Algorithm(param,A)
+function Howard_Algorithm(param,B)
     @unpack_model param
-    B = (r.*I - A);
     iter = 1;
     vold = zeros(length(zg));
     vnew = copy(vold);
@@ -84,7 +83,8 @@ end
 function solve_HJB_VI(param)
     @unpack_model param
     A = populate_A(param)
-    v,exist_or_not = Howard_Algorithm(param,A)
+    B = (r.*I - A);
+    v,exist_or_not = Howard_Algorithm(param,B)
     underz_index = findlast(exist_or_not .>0 )
     if isnothing(underz_index)
         underz_index = J

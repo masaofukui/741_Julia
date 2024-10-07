@@ -1,31 +1,33 @@
 using SparseArrays 
 using Parameters
 using LinearAlgebra
-using LCPsolve
 using Distributions
 using Plots
 @with_kw mutable struct model
     J = 200
-    sig = 2
-    mu = -0.00000001
-    zg = range(0.1,1,length=J)
+    sig = 0.41
+    mu = -0.001
+    zg = range(0.001,100,length=J)
     dz = zg[2] - zg[1]
     alph = 0.64
-    cf = 0.1
+    cf = 1
     r = 0.05
     L = 1
     underv = 0.0
-    xi = 20
+    xi = 10
     psig = entry_dist(xi,zg)
-    ce = 10
+    ce = 0.001
+    max_iter = 1e3
 end
+
 function entry_dist(xi,zg)
-    d = Pareto(xi, 0.1)
+    d = Pareto(xi, 1)
     psig = diff(cdf(d,zg))
     psig = [psig; psig[end]]
     psig = psig./sum(psig)./(zg[2]-zg[1])
     return psig
 end
+
 function populate_A(param)
     @unpack_model param
     A = spzeros(length(zg),length(zg))
@@ -44,17 +46,17 @@ function populate_A(param)
     return A
 end
 
-
-function Howard_Algorithm(param,B,pig,underv)
+function Howard_Algorithm(param,B,pig)
     @unpack_model param
     iter = 1;
     vold = zeros(length(zg));
     vnew = copy(vold);
-    while iter < 100 
+    exit_or_not = []
+    while iter < max_iter 
         val_noexit =  (B*vold .- pig);
         val_exit = vold  .- underv
         exit_or_not =val_noexit  .> val_exit;
-        Btilde = B.*(1 .-exit_or_not) + I*(exit_or_not)
+        Btilde = B.*(1 .-exit_or_not) + I(J).*(exit_or_not)
         q = pig.*(1 .-exit_or_not) + underv.*(exit_or_not)
         vnew = Btilde\q;
         if norm(vnew - vold) < 1e-6
@@ -62,7 +64,7 @@ function Howard_Algorithm(param,B,pig,underv)
         end
         vold = copy(vnew)
     end
-    return vnew
+    return vnew,exit_or_not
 end
 
 function solve_HJB_VI(param,w)
@@ -71,14 +73,12 @@ function solve_HJB_VI(param,w)
     B = (r.*I - A);
     ng = (alph./w)^(1/(1-alph)).*zg
     pig = zg.^(1-alph).*ng.^alph .- w.*ng .- cf
-    v = solve_using_Howard(param,B,pig,underv)
-    first_positive = findfirst(v .> vold )
-    if isnothing(first_positive)
-        underz_index = J
-    else
-        underz_index = first_positive
+    v,exit_or_not = Howard_Algorithm(param,B,pig)
+    underz_index = findlast(exit_or_not .> 0 )
+    if isnothing(underz_index)
+        underz_index = 1
     end
-    return v,underz_index,ng
+    return v,underz_index,ng,exit_or_not
 end
 
 function solve_w(param)
@@ -89,11 +89,12 @@ function solve_w(param)
     err_free_entry = 100
     iter = 0
     underz_index = 0
-    v = 0
-    ng = 0
+    v = [];
+    ng = [];
+    exit_or_not = [];
     while iter < 1000 && abs(err_free_entry) > 1e-6
         w = (w_ub + w_lb)/2
-        v,underz_index,ng = solve_HJB_VI(param,w)
+        v, underz_index,ng,exit_or_not = solve_HJB_VI(param,w)
         err_free_entry = sum(v.*psig.*dz) - ce
         if err_free_entry > 0
             w_lb = w
@@ -105,36 +106,40 @@ function solve_w(param)
     end
     @assert iter < 1000
     
-    return (w = w, v = v, underz_index  = underz_index,ng=ng)
+    return (w = w, v = v, underz_index  = underz_index,ng=ng,exit_or_not=exit_or_not)
 end
 
-function solve_stationary_distribution(param,underz_index)
+function solve_stationary_distribution(param,HJB_result)
     @unpack_model param
+    @unpack exit_or_not = HJB_result
+    D = spdiagm(0 => exit_or_not)
+    I_D = I-D;
     A = populate_A(param)
-    
-    A_truncate = A[underz_index:end,underz_index:end]
-    B = -psig[underz_index:end];  
-    g = (A_truncate')\B;
-
-    g = [zeros(underz_index-1);g]
+    tildeA = A*I_D + D;
+    B = -I_D*psig;  
+    hatg = (tildeA')\B;
+    m = L/sum(hatg.*ng.*dz)
+    g = hatg.*m
     return g
 end
 
 param = model()
-@unpack_model param
+HJB_result = solve_w(param)
+hatg = solve_stationary_distribution(param,HJB_result)
 
-@time HJB_result = solve_w(param)
+
+
 v = HJB_result.v
 w = HJB_result.w
 ng = HJB_result.ng
 underz_index = HJB_result.underz_index
 plot(zg,v)
 zg[2]
-hatg = solve_stationary_distribution(param,underz_index)
-m = L/sum(hatg.*ng.*dz)
-g = hatg.*m
-entry_rate = sum(m.*psig[underz_index:end].*dz)/sum(g.*dz)
+g = solve_stationary_distribution(param,HJB_result)
 
+
+entry_rate = sum(m.*psig[underz_index:end].*dz)/sum(g.*dz)
+plot(zg,g)
 
 entrants_size = sum(zg[underz_index:end].*psig[underz_index:end].*dz)/sum(psig[underz_index:end].*dz)
 ave_size = sum(zg.*g.*dz)/sum(g.*dz)
