@@ -67,7 +67,8 @@ function Howard_Algorithm(param,B)
         val_noexit =  (B*vold .- pig);
         val_exit = vold  .- underv
         exit_or_not =val_noexit  .> val_exit;
-        Btilde = B.*(1 .-exit_or_not) + I(J) .*(exit_or_not)
+        D = spdiagm(0 => exit_or_not)
+        Btilde = (I-D)*B + D
         q = pig.*(1 .-exit_or_not) + underv.*(exit_or_not)
         vnew = Btilde\q;
         if norm(vnew - vold) < 1e-6

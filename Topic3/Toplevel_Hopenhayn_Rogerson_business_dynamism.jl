@@ -34,7 +34,7 @@ fig_save = 1;
     ag = range(0,100,length=Na)
     da = diff(ag)
     tilde_Delta_a = [da[1]; [(da[i]+da[i+1])/2 for i in 1:(Na-2)]; da[end]]
-    eta = 0.0
+    eta = 0.00
     dt = 2
     tg = 0:dt:300
     T = length(tg)

@@ -11,15 +11,19 @@ function plt_fun(param,x,y; lw = 4, ymin=0,ymax=0, xlabel = "",title = "",x_base
     yguidefontfamily = "Computer Modern",
     legendfontfamily = "Computer Modern",
     titlefontsize=20,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
+
     if ymin != 0 && ymax != 0
         plot!(ylim=(ymin,ymax))
+    end
+    if maximum(y) - minimum(y) < 1e-4
+        plot!(ylim=(minimum(y)-0.05,maximum(y)+0.05))
     end
 
     if x_baseline != "none"
         vline!([x_baseline], label=:none,color=:red,linestyle=:dash)
         ymin, ymax = ylims(plt)
         xmin, xmax = xlims(plt)
-        annotate!(x_baseline+0.01*(xmax-xmin), ymin+0.5*(ymax-ymin), text("Baseline", :left,"red","Computer Modern"))
+        annotate!(x_baseline+0.01*(xmax-xmin), ymin+0.8*(ymax-ymin), text("Baseline", :left,"red","Computer Modern"))
     end
     display(plt)
     return plt

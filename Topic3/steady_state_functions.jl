@@ -99,7 +99,8 @@ function Howard_Algorithm(param,B,pig)
         val_noexit =  (B*vold .- pig);
         val_exit = vold  .- underv
         exit_or_not =val_noexit  .> val_exit;
-        Btilde = B.*(1 .-exit_or_not) + I(J).*(exit_or_not)
+        D = spdiagm(0 => exit_or_not)
+        Btilde = (I-D)*B + D
         q = pig.*(1 .-exit_or_not) + underv.*(exit_or_not)
         vnew = Btilde\q;
         if norm(vnew - vold) < 1e-6
@@ -233,6 +234,7 @@ function ss_comparative_statics(param,variable_name,variable_grid)
         elseif variable_name == "r"
             param = model(ce = ce_calibrate, r = v_i)
         end
+        eta = param.eta;
         eqm_result = wrapper_eqm(param,calibration=0)
         @unpack entry_rate, Average_size, Average_age, Average_size_by_age, Exit_rate_by_age = eqm_result
         entry_rate_g[i] = entry_rate
@@ -262,11 +264,11 @@ function ss_comparative_statics(param,variable_name,variable_grid)
     end
 
     lw = 4
-    plt_entry = plt_fun(param,etag,entry_rate_g; lw = lw, ymin=0,ymax=0,xlabel=xlabel_str,title= "Entry rate",x_baseline=x_baseline)
+    plt_entry = plt_fun(param,xgrid,entry_rate_g; lw = lw, ymin=0,ymax=0,xlabel=xlabel_str,title= "Entry rate",x_baseline=x_baseline)
     ymin, ymax = ylims(plt_entry)
-    plt_exit = plt_fun(param,etag,exit_rate_g,lw=lw,ymin=ymin,ymax=ymax,xlabel=xlabel_str,title= "Exit rate",x_baseline=x_baseline)
-    plt_ave_size = plt_fun(param,etag,ave_size_g,lw=lw,xlabel=xlabel_str,title= "Average firm size",x_baseline=x_baseline)
-    plt_ave_age = plt_fun(param,etag,ave_age_g,lw=lw,xlabel=xlabel_str,title= "Average firm age",x_baseline=x_baseline)
+    plt_exit = plt_fun(param,xgrid,exit_rate_g,lw=lw,ymin=ymin,ymax=ymax,xlabel=xlabel_str,title= "Exit rate",x_baseline=x_baseline)
+    plt_ave_size = plt_fun(param,xgrid,ave_size_g,lw=lw,xlabel=xlabel_str,title= "Average firm size",x_baseline=x_baseline)
+    plt_ave_age = plt_fun(param,xgrid,ave_age_g,lw=lw,xlabel=xlabel_str,title= "Average firm age",x_baseline=x_baseline)
 
     plt_all = plot(plt_entry,plt_exit,plt_ave_size,plt_ave_age,layout=(2,2),size=(1200,800))
     plot!(margin=5mm)
@@ -275,8 +277,8 @@ function ss_comparative_statics(param,variable_name,variable_grid)
         savefig(plt_all,"./figure/Karahan_Sahin_Pugsley_"*variable_name*".pdf")
     end
 
-    plt_size_by_age = plt_by_age_fun(param,etag,ave_size_by_age_g; lw = lw, ymin=0,ymax=0,xlabel=xlabel_str,title= "Average firm size conditional on age")
-    plt_exit_by_age = plt_by_age_fun(param,etag,exit_rate_by_age_g,lw=lw,ymin=0,ymax=0,xlabel=xlabel_str,title= "Exit rate conditional on age")
+    plt_size_by_age = plt_by_age_fun(param,xgrid,ave_size_by_age_g; lw = lw, ymin=0,ymax=0,xlabel=xlabel_str,title= "Average firm size conditional on age")
+    plt_exit_by_age = plt_by_age_fun(param,xgrid,exit_rate_by_age_g,lw=lw,ymin=0,ymax=0,xlabel=xlabel_str,title= "Exit rate conditional on age")
 
 
     plt_all = plot(plt_size_by_age,plt_exit_by_age,layout=(1,2),size=(1200,400))

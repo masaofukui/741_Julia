@@ -8,6 +8,7 @@ using ReadStatTables
 using StatsPlots
 using Plots.Measures
 
+data_loc = "./Topic2/Data/"
 fig_save = 1;
 @with_kw mutable struct model
     J = 1000
@@ -72,7 +73,8 @@ function Howard_Algorithm(param,B,pig)
         val_noexit =  (B*vold .- pig);
         val_exit = vold  .- underv
         exit_or_not =val_noexit  .> val_exit;
-        Btilde = B.*(1 .-exit_or_not) + I(J).*(exit_or_not)
+        D = spdiagm(0 => exit_or_not)
+        Btilde = (I-D)*B + D
         q = pig.*(1 .-exit_or_not) + underv.*(exit_or_not)
         vnew = Btilde\q;
         if norm(vnew - vold) < 1e-6
@@ -289,13 +291,13 @@ if calibration == 1
 end
 dist_result = solve_stationary_distribution(param,HJB_result)
 compute_calibration_targets(param,HJB_result,dist_result)
-df = @use "../Empirics/Data/temp/bds_temp.dta",clear;
+df = @use data_loc*"bds_for_julia.dta",clear;
 setdf(df)
 df = @keep @if year == 2021
 produce_bar_plots(param,HJB_result,dist_result,df)
 produce_density_plots(param,HJB_result,dist_result)
 
-df_pareto = @use "../Empirics/Data/temp/data_for_julia_plot.dta",clear;
+df_pareto = @use data_loc*"data_for_julia_plot.dta",clear;
 setdf(df_pareto)
 df_pareto = @keep @if year == 2021
 
