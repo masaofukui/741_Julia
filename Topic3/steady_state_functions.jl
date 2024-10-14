@@ -108,6 +108,7 @@ function Howard_Algorithm(param,B,pig)
         end
         vold = copy(vnew)
     end
+    @assert iter < max_iter "Howard Algorithm did not converge"
     return vnew,exit_or_not
 end
 

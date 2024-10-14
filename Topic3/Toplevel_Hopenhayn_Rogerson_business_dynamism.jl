@@ -6,7 +6,7 @@ using Distributions
 using Plots
 using Plots.Measures
 
-fig_save = 1;
+fig_save = 0;
 
 @with_kw mutable struct model
     J = 1000
@@ -81,14 +81,14 @@ ss_comparative_statics(param,"r",r_g)
 etapath = max.(0.02 .- 0.02/40 .*tg,0)
 param.eta = etapath[1];
 @assert param.ce == ce_calibrate
-transition_result = solve_transition_distribution(param,etapath)
+transition_result = solve_transition_distribution(param,etapath,shock="eta")
 
 @unpack entry_rate_path, exit_rate_path, mpath, Average_age_path, Average_size_path = transition_result
 
-plt_eta = plt_fun(param,tg,etapath,lw=lw,xlabel = "Year",title = "Population growth rate")
-plt_entry = plt_fun(param,tg,entry_rate_path,lw=lw,xlabel = "Year",title = "Entry & exit rates", y2 = exit_rate_path,label1="Entry rate",label2="Exit rate")
-plt_size = plt_fun(param,tg,Average_size_path,lw=lw,xlabel = "Year",title = "Average Firm Size")
-plt_age = plt_fun(param,tg,Average_age_path,lw=lw,xlabel = "Year",title = "Average Firm Age")
+plt_eta = plt_fun(param,tg,etapath,xlabel = "Year",title = "Population growth rate")
+plt_entry = plt_fun(param,tg,entry_rate_path,xlabel = "Year",title = "Entry & exit rates", y2 = exit_rate_path,label1="Entry rate",label2="Exit rate")
+plt_size = plt_fun(param,tg,Average_size_path,xlabel = "Year",title = "Average Firm Size")
+plt_age = plt_fun(param,tg,Average_age_path,xlabel = "Year",title = "Average Firm Age")
 
 plt_all = plot(plt_eta,plt_entry,
 plt_size,plt_age,layout=(2,2),size=(1200,800))
@@ -96,4 +96,27 @@ plot!(margin=5mm)
 
 if fig_save == 1
     savefig(plt_all,"./figure/Karahan_Sahin_Pugsley_transition_dynamics.pdf")
+end
+
+
+##############################################################################
+# Transition Dynamics with firm destruction shock
+##############################################################################
+param = model(ce = ce_calibrate)
+chipath = zeros(param.T)
+chipath[1] = 0.005;
+transition_result = solve_transition_distribution(param,chipath,shock="chi")
+
+@unpack entry_rate_path, exit_rate_path, mpath, Average_age_path, Average_size_path,firm_mass,wpath = transition_result
+
+
+plt_entry = plt_fun(param,tg,entry_rate_path,xlabel = "Year",title = "Entry & exit rates", y2 = exit_rate_path,label1="Entry rate",label2="Exit rate")
+plt_size = plt_fun(param,tg,Average_size_path,xlabel = "Year",title = "Average firm size")
+plt_w = plt_fun(param,tg,wpath,xlabel = "Year",title = "Real wage")
+plt_mass = plt_fun(param,tg,firm_mass,xlabel = "Year",title = "Mass of firms")
+
+plt_all = plot(plt_entry,plt_size,plt_w,plt_mass,layout=(2,2),size=(1200,800))
+plot!(margin=5mm)
+if fig_save == 1
+    savefig(plt_all,"./figure/Karahan_Sahin_Pugsley_transition_dynamics_destruction.pdf")
 end
