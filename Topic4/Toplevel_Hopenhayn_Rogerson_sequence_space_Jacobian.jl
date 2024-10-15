@@ -58,12 +58,12 @@ N_Jacobian_Z = Compute_Sequence_Space_Jacobian(param,ss_result,"Z")
 
 plot(tg,N_Jacobian_w[:,1])
 
-plot(tg,N_Jacobian_eta[:,1])
+plot(tg,N_Jacobian_eta[:,5])
 
 etapath = zeros(length(tg))
 etapath[1:1] .= 1.0;
 
-
+rhoZ = 0.9
 Zpath = rhoZ.^(tg.-1)
 dwpath = - N_Jacobian_w\N_Jacobian_eta*etapath;
 dwpath = - N_Jacobian_w\N_Jacobian_Z*Zpath;

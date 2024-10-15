@@ -20,10 +20,14 @@ function populate_A(param)
     return A
 end
 
-function Howard_Algorithm(param,B,pig)
+function Howard_Algorithm(param,B,pig;vinit=0)
     @unpack_model param
     iter = 1;
-    vold = zeros(length(zg));
+    if vinit == 0
+        vold = zeros(length(zg));
+    else
+        vold = copy(vinit)
+    end
     vnew = copy(vold);
     exit_or_not = []
     while iter < max_iter 
