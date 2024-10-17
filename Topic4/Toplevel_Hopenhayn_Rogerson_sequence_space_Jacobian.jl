@@ -41,26 +41,31 @@ include("steady_state_functions.jl")
 include("subfunctions.jl")
 include("transition_functions.jl")
 
-
+shock = "eta"
 param = model(nu=2)
-IRF_path,Jacobian_dict = SSJ_wrapper(param)
+IRF_path,Jacobian_dict = SSJ_wrapper(param,shock=shock)
 param_high_nu = model(nu=10)
-IRF_path_high_nu,Jacobian_dict_high_nu = SSJ_wrapper(param_high_nu)
+IRF_path_high_nu,Jacobian_dict_high_nu = SSJ_wrapper(param_high_nu,shock=shock)
 
 
 plt = Dict{String,Any}()
-plt["eta"] = plot_IRF(param,etapath*100,etapath[1]*100; tpre=10,tmax=0,title = "Population growth rate",ylabel="p.p.")
+plt["eta"] = plot_IRF(param,IRF_path["etapath"]*100,IRF_path["etapath"][1]*100; tpre=10,tmax=0,title = "Population growth rate",ylabel="p.p.")
 plt["w_plot"] = plot_IRF(param,IRF_path["w_plot"]*100,0; tpre=10,tmax=0,title = "Wage",label1="ν = "*string(param.nu),y2 = IRF_path_high_nu["w_plot"]*100,label2="ν = "*string(param_high_nu.nu))
 
 plt["Firm_mass"] = plot_IRF(param,IRF_path["Firm_mass_plot"]*100,0; tpre=10,tmax=0,title = "Mass of firms (per capita)",label1="ν = "*string(param.nu),y2 = IRF_path_high_nu["Firm_mass_plot"]*100,label2="ν = "*string(param_high_nu.nu))
 
 plt["Entry_rate"] = plot_IRF(param,IRF_path["Entry_rate_plot"]*100,0; tpre=10,tmax=0,title = "Entry rate",label1="ν = "*string(param.nu),y2 = IRF_path_high_nu["Entry_rate_plot"]*100,label2="ν = "*string(param_high_nu.nu),ylabel="p.p. devition from initial s.s.")
 
+plt["Exit_rate"] = plot_IRF(param,IRF_path["Exit_rate_plot"]*100,0; tpre=10,tmax=0,title = "Exit rate",label1="ν = "*string(param.nu),y2 = IRF_path_high_nu["Exit_rate_plot"]*100,label2="ν = "*string(param_high_nu.nu),ylabel="p.p. devition from initial s.s.")
 
-plot(plt["eta"],plt["w_plot"],plt["Firm_mass"],plt["Entry_rate"],layout=(2,2),size=(1200,800))
+if shock == "eta"
+    plt_all = plot(plt["eta"],plt["Entry_rate"],plt["w_plot"],plt["Firm_mass"],layout=(2,2),size=(1200,800))
+elseif shock == "exit"
+    plt_all = plot(plt["Exit_rate"],plt["Entry_rate"],plt["w_plot"],plt["Firm_mass"],layout=(2,2),size=(1200,800))
+end
 plot!(margin=5mm)
 if fig_save == 1
-    savefig("./figure/SSJ_Karahan.pdf")
+    savefig(plt_all,"./figure/SSJ_Karahan_shock_"*shock*".pdf")
 end
 
 default_colors = palette(:auto)
@@ -76,6 +81,6 @@ xguidefontfamily = "Computer Modern",
 yguidefontfamily = "Computer Modern",
 legendfontfamily = "Computer Modern",
 titlefontsize=20,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
-if fiv_save == 1
-    savefig("./figure/Jacobian_N_w.pdf")
+if fig_save == 1
+    savefig("./figure/Jacobian_N_w_shock_"*shock*".pdf")
 end

@@ -137,6 +137,10 @@ function compute_calibration_targets(param,ss_result)
     reverse_cumsum_g = reverse(cumsum(reverse(tildeg_nonuniform)))/sum(tildeg_nonuniform)
     emp500_cutoff = findlast(reverse_cumsum_g .> 0.0038)
     share_500 = sum(ng[emp500_cutoff:end].*tildeg_nonuniform[emp500_cutoff:end])/sum(ng.*tildeg_nonuniform)
+    Firm_mass = sum(tildeg_nonuniform)
+    Exit_rate = entry_rate - eta
+    Exit = Exit_rate*Firm_mass
+
 
     println("--------- Average Size -----------")
     println(ave_size)
@@ -158,7 +162,9 @@ function compute_calibration_targets(param,ss_result)
     ss_stats["Firm_size"] = ave_size
     ss_stats["share_500"] = share_500
     ss_stats["w"] = w
-    ss_stats["Firm_mass"] = sum(tildeg_nonuniform)
+    ss_stats["Firm_mass"] = Firm_mass
+    ss_stats["Exit"] = Exit
+    ss_stats["Exit_rate"] = Exit_rate
 
 
     return ss_stats

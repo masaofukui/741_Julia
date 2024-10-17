@@ -89,7 +89,7 @@ function Compute_Sequence_Space_Jacobian(param,ss_result,dvar;dx=0.001)
     dexit_or_not_path = (HJB_backward_result.exit_or_not_path .- HJB_backward_result_ghost.exit_or_not_path)/dx
 
 
-    
+    var_list = ["w","Entry","Firm_mass","Entry_rate","Firm_size","Exit_rate","Exit"]
     g1_ghost = zeros(J,length(tg))
     g1 = copy(g1_ghost)
     dg = copy(g1_ghost)
@@ -115,12 +115,12 @@ function Compute_Sequence_Space_Jacobian(param,ss_result,dvar;dx=0.001)
                 ss0_result = solve_w(param_eta_init)
                 ss0_stats = compute_calibration_targets(param_eta_init,ss0_result)
                 Jacobian["ss"*string(i)]["g0"] = ss0_result.tildeg_nonuniform
-                for v in ["w","Entry","Firm_mass","Entry_rate","Firm_size"] 
+                for v in var_list
                     Jacobian["ss"*string(i)][v] = ss0_stats[v]
                 end
             end
             g0_in = Jacobian["ss0"]["g0"]
-            for v in ["w","Entry","Firm_mass","Entry_rate","Firm_size"] 
+            for v in var_list 
                 Jacobian["dss"][v] = (Jacobian["ss0"][v] - Jacobian["ss1"][v])./dx
             end
         else
@@ -138,7 +138,6 @@ function Compute_Sequence_Space_Jacobian(param,ss_result,dvar;dx=0.001)
         Jacobian["N"][1,s] = sum(dn_path[:,b_index].*g_ss) + sum(ng_ss.*dg[:,s])
         Jacobian["Firm_mass"][1,s] = sum(dg[:,s])
         Jacobian["Entry"][1,s] = sum(dm_path[b_index].*tilde_psig[underz_index_ss:end]) + sum(m_ss.*dexit_or_not_path[:,b_index].*tilde_psig)
-        Jacobian["Exit"][1,s] = Jacobian["Entry"][1,s] - Jacobian["Firm_mass"][1,s]
     
         dg_t = dg[:,s];
         for t = 1:length(tg)
@@ -152,9 +151,8 @@ function Compute_Sequence_Space_Jacobian(param,ss_result,dvar;dx=0.001)
                     Jacobian["N"][t,s] = sum(ng_ss.*dg_t)
                     Jacobian["Firm_mass"][t,s] = sum(dg_t)
                 end
-                Jacobian["Exit"][t,s] = Jacobian["Entry"][t,s] - (Jacobian["Firm_mass"][t,s] - Jacobian["Firm_mass"][t-1,s])
             end
-            for v in ["Entry","Exit"]
+            for v in ["Entry"]
                 Jacobian[v*"_rate"][t,s] = (Jacobian[v][t,s]*ss_stats["Firm_mass"]-Jacobian["Firm_mass"][t,s]*ss_stats[v]) /(ss_stats["Firm_mass"]^2)
             end
             Jacobian["Firm_size"][t,s] = - Jacobian["Firm_mass"][t,s]/(ss_stats["Firm_mass"]^2)
@@ -212,6 +210,7 @@ function SSJ_wrapper(param; shock = "eta")
         Jacobian_dict[dvar] = Compute_Sequence_Space_Jacobian(param,ss_result,dvar,dx=0.0001)
     end
     etapath = zeros(T)
+    @assert in(shock,["eta","exit"])
     if shock == "eta"
         etapath[1] = 0.02
         etapath = max.(0.02 .- 0.02/40 .*tg,0)
@@ -233,9 +232,12 @@ function SSJ_wrapper(param; shock = "eta")
 
         if v == "w" || v == "Firm_size" || v == "Firm_mass"
             IRF_path[v*"_plot"] = (IRF_path[v] .- Jacobian_dict["initial_eta"]["dss"][v].*initial_eta)./(Jacobian_dict["initial_eta"]["ss0"][v] + Jacobian_dict["initial_eta"]["dss"][v].*initial_eta)
-        elseif v == "Entry_rate"
+        elseif v == "Entry_rate" || v == "Exit_rate"
             IRF_path[v*"_plot"] =  (IRF_path[v] .- Jacobian_dict["initial_eta"]["dss"][v].*initial_eta)
         end
     end
+    IRF_path["Exit_rate_plot"] = IRF_path["Entry_rate"] - [IRF_path["Firm_mass_plot"][1]; diff(IRF_path["Firm_mass_plot"])]./dt - etapath .- Jacobian_dict["initial_eta"]["dss"]["Exit_rate"].*initial_eta;
+
+    IRF_path["etapath"] = etapath;
     return IRF_path,Jacobian_dict
 end
