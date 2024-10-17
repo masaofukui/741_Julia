@@ -62,7 +62,7 @@ function solve_HJB_VI(param,w)
     ng = ng,exit_or_not =exit_or_not)
 end
 
-function solve_w(param; calibration=0 )
+function solve_w(param; calibration=0,tol=1e-8 )
     @unpack_model param
     w_ub = 20;
     w_lb = 0;
@@ -76,7 +76,7 @@ function solve_w(param; calibration=0 )
     exit_or_not = [];
     tildeg_nonuniform = [];
     m = []
-    while iter < max_iter && abs(excess_labor) > 1e-4
+    while iter < max_iter && abs(excess_labor) > tol
         if calibration != 0
             w = 0.78;
         else
@@ -127,9 +127,10 @@ end
 
 function compute_calibration_targets(param,ss_result)
     @unpack_model param
-    @unpack underz_index,ng,tildeg_nonuniform,m = ss_result
+    @unpack underz_index,ng,tildeg_nonuniform,m,w = ss_result
     
     entry_rate = sum(m.*tilde_psig[underz_index:end])/sum(tildeg_nonuniform)
+    Entry = sum(m.*tilde_psig[underz_index:end]);
 
     entrants_size = sum(ng[underz_index:end].*tilde_psig[underz_index:end])/sum(tilde_psig[underz_index:end])
     ave_size = sum(ng.*tildeg_nonuniform)/sum(tildeg_nonuniform)
@@ -150,4 +151,15 @@ function compute_calibration_targets(param,ss_result)
     println("------ cutoff n ------")
     println(ng[underz_index])
 
+    ss_stats = Dict{String,Any}()
+    ss_stats["Entry_rate"] = entry_rate
+    ss_stats["Entry"] = Entry
+    ss_stats["entrants_size"] = entrants_size
+    ss_stats["Firm_size"] = ave_size
+    ss_stats["share_500"] = share_500
+    ss_stats["w"] = w
+    ss_stats["Firm_mass"] = sum(tildeg_nonuniform)
+
+
+    return ss_stats
 end

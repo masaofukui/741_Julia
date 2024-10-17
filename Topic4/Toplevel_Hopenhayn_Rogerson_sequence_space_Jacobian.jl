@@ -42,31 +42,40 @@ include("subfunctions.jl")
 include("transition_functions.jl")
 
 
-param = model()
-@unpack_model param
-ss_result = solve_w(param; calibration=0 )
-compute_calibration_targets(param,ss_result)
+param = model(nu=2)
+IRF_path,Jacobian_dict = SSJ_wrapper(param)
+param_high_nu = model(nu=10)
+IRF_path_high_nu,Jacobian_dict_high_nu = SSJ_wrapper(param_high_nu)
 
 
+plt = Dict{String,Any}()
+plt["eta"] = plot_IRF(param,etapath*100,etapath[1]*100; tpre=10,tmax=0,title = "Population growth rate",ylabel="p.p.")
+plt["w_plot"] = plot_IRF(param,IRF_path["w_plot"]*100,0; tpre=10,tmax=0,title = "Wage",label1="ν = "*string(param.nu),y2 = IRF_path_high_nu["w_plot"]*100,label2="ν = "*string(param_high_nu.nu))
 
-N_Jacobian_w = Compute_Sequence_Space_Jacobian(param,ss_result,"w")
+plt["Firm_mass"] = plot_IRF(param,IRF_path["Firm_mass_plot"]*100,0; tpre=10,tmax=0,title = "Mass of firms (per capita)",label1="ν = "*string(param.nu),y2 = IRF_path_high_nu["Firm_mass_plot"]*100,label2="ν = "*string(param_high_nu.nu))
 
-N_Jacobian_eta = Compute_Sequence_Space_Jacobian(param,ss_result,"eta")
-
-N_Jacobian_Z = Compute_Sequence_Space_Jacobian(param,ss_result,"Z")
+plt["Entry_rate"] = plot_IRF(param,IRF_path["Entry_rate_plot"]*100,0; tpre=10,tmax=0,title = "Entry rate",label1="ν = "*string(param.nu),y2 = IRF_path_high_nu["Entry_rate_plot"]*100,label2="ν = "*string(param_high_nu.nu),ylabel="p.p. devition from initial s.s.")
 
 
-plot(tg,N_Jacobian_w[:,1])
+plot(plt["eta"],plt["w_plot"],plt["Firm_mass"],plt["Entry_rate"],layout=(2,2),size=(1200,800))
+plot!(margin=5mm)
+if fig_save == 1
+    savefig("./figure/SSJ_Karahan.pdf")
+end
 
-plot(tg,N_Jacobian_eta[:,5])
+default_colors = palette(:auto)
+shock_index = [1,21,41]
+shock_label = ["s = "*string((shock_index[i]-1)*dt) for i in eachindex(shock_index)]
 
-etapath = zeros(length(tg))
-etapath[1:1] .= 1.0;
-
-rhoZ = 0.9
-Zpath = rhoZ.^(tg.-1)
-dwpath = - N_Jacobian_w\N_Jacobian_eta*etapath;
-dwpath = - N_Jacobian_w\N_Jacobian_Z*Zpath;
-
-plot(tg,etapath)
-plot(tg,dwpath)
+plot(tg, Jacobian_dict["w"]["N"][:,shock_index],lw=2,label=permutedims(shock_label),color=default_colors[1:length(shock_index)]')
+plot!(tg, Jacobian_dict_high_nu["w"]["N"][:,shock_index],lw=2,label=:none,linestyle=:dash,color=default_colors[1:length(shock_index)]')
+xlims!(0,100)
+xlabel!("t")
+plot!(titlefontfamily = "Computer Modern",
+xguidefontfamily = "Computer Modern",
+yguidefontfamily = "Computer Modern",
+legendfontfamily = "Computer Modern",
+titlefontsize=20,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
+if fiv_save == 1
+    savefig("./figure/Jacobian_N_w.pdf")
+end
