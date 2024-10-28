@@ -31,7 +31,7 @@ fig_save = 0;
     tilde_psig_na = [tilde_psig; zeros((Na-1)*J)]
     max_iter = 1e3
     #lag = range(0,log(100),length=Na)
-    ag = range(0,100,length=Na)
+    ag = range(0,1000,length=Na)
     da = diff(ag)
     tilde_Delta_a = [da[1]; [(da[i]+da[i+1])/2 for i in 1:(Na-2)]; da[end]]
     eta = 0.00

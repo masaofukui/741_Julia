@@ -24,7 +24,6 @@ function populate_A_KFE(param)
     A_row = ones(Int64,J*Na*10)
     A_col = ones(Int64,J*Na*10)
     A_val = zeros(Float64,J*Na*10)
-    A = spzeros(length(zg),length(zg))
     
     k =0 
     for (iz,z) in enumerate(zg)

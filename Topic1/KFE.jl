@@ -48,7 +48,7 @@ g = g./sum(g.*dn)
 analytical_n = zeta.*ng.^(-zeta-1)
 analytical_n = analytical_n./sum(analytical_n.*dn)
 plt_dist = plot(ng,g,label="Numerical",lw=6,color=colplot_blue[2])
-plot!(ng,analytical_n,lw=6,linestyle = :dash,color=colplot_blue[3],label="Analytical")
+plot!(ng,analytical_n,lw=6,linestyle = :dash,color=colplot_blue[4],label="Analytical")
 plot!(xlabel="n",title= "Density of Firm Size Distribution, g(n)")
 plot!(titlefontfamily = "Computer Modern",
             xguidefontfamily = "Computer Modern",
@@ -88,14 +88,19 @@ for t = 2:T
     gpath[:,t] = (I - dt*A')\gpath[:,t-1]
 end
 
+tgrid = [100,500,T]
 plt_transition = plot(ng,gpath[:,1],label="t = "*string(0),lw=6,color=colplot_blue[1])
-plot!(ng,gpath[:,100],label="t = "*string(100*dt),lw=6,color=colplot_blue[2])
-plot!(ng,gpath[:,500],label="t = "*string(500*dt),lw=6,color=colplot_blue[3])
-plot!(ng,gpath[:,end],label="t = "*string(T*dt),lw=6,color=colplot_blue[4])
-plot!(ng,g[:,end],label="Steady state",lw=6,color=colplot_red[2],linestyle=:dash)
 plot!(xlabel="time, t",ylabel= "g(n)",title= "Transition of Firm Size Distribution, g(n)")
 plot!(titlefontfamily = "Computer Modern",
             xguidefontfamily = "Computer Modern",
             yguidefontfamily = "Computer Modern",
             titlefontsize=15,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
+ylims!(-0.1,3.1)
+savefig(plt_transition,"./figure/Transition_firm_size_0.pdf")
+for i in eachindex(tgrid)
+    plot!(ng,gpath[:,tgrid[i]],label="t = "*string(tgrid[i]*dt),lw=6,color=colplot_blue[i+1])
+    savefig(plt_transition,"./figure/Transition_firm_size_"*string(i)*".pdf")
+end
+plot!(ng,g[:,end],label="Steady state",lw=6,color=colplot_red[2],linestyle=:dash)
+
 savefig(plt_transition,"./figure/Transition_firm_size.pdf")

@@ -9,13 +9,17 @@ using Plots.Measures
 fig_save = 0;
 
 @with_kw mutable struct model
-    J = 1000
+    Jn = 100
+    Jz = 120
     sig = 0.41
     zeta = 1.05
     mu = sig^2*(1-zeta)/2
-    lzg = range(log(0.1),log(2300000),length=J)
+    lng = range(log(0.1),log(2300000),length=Jn)
+    lzg = range(log(0.1),log(2300000),length=Jz)
+    ng = exp.(lng)
     zg = exp.(lzg)
-    dz = diff(zg)
+    Delta_z = diff(zg)
+    Delta_n = diff(ng)
     alph = 0.64
     cf = 0.5
     r = 0.05
@@ -23,23 +27,25 @@ fig_save = 0;
     underv = 0.0
     xi = 1.1
     ce = 15
-    tilde_Delta_z = [ dz[1]; [(dz[i]+dz[i+1])/2 for i in 1:(J-2)]; dz[end]]
-    psig = entry_dist(xi,zg,tilde_Delta_z)[1]
-    tilde_psig = entry_dist(xi,zg,tilde_Delta_z)[2]
+    tilde_Delta_z = [ Delta_z[1]; [(Delta_z[i]+Delta_z[i+1])/2 for i in 1:(Jz-2)]; Delta_z[end]]
+    n_start = 1
+    tilde_psig_zn = entry_dist(xi,zg,tilde_Delta_z,n_start)
     max_iter = 1e3
-    #lag = range(0,log(100),length=Na)
     eta = 0.00
     dt = 2
     tg = 0:dt:300
     T = length(tg)
     nu = 2
+    phi = 2
+    s = 0.08
+    g_fun = h -> phi/2 .* h.^2
+    h_fun = (dv) -> dv ./phi
 end
 
 
 include("plot_functions.jl")
 include("steady_state_functions.jl")
 include("subfunctions.jl")
-include("transition_functions.jl")
 
 #change this to either "eta" or "exit"
 shock = "eta"
