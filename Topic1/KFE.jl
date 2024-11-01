@@ -78,6 +78,11 @@ plot!(titlefontfamily = "Computer Modern",
 savefig(plt_PL,"./figure/Power_Law.pdf")
 
 
+
+
+####################################################
+# Transition Dynamics
+####################################################
 using LinearAlgebra
 dt = 0.1;
 T = 5000;
@@ -90,7 +95,7 @@ end
 
 tgrid = [100,500,T]
 plt_transition = plot(ng,gpath[:,1],label="t = "*string(0),lw=6,color=colplot_blue[1])
-plot!(xlabel="time, t",ylabel= "g(n)",title= "Transition of Firm Size Distribution, g(n)")
+plot!(xlabel="Firm size, n",ylabel= "g(n)",title= "Transition of Firm Size Distribution, g(n)")
 plot!(titlefontfamily = "Computer Modern",
             xguidefontfamily = "Computer Modern",
             yguidefontfamily = "Computer Modern",

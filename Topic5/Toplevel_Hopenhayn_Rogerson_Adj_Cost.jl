@@ -49,7 +49,8 @@ include("subfunctions.jl")
 
 w=1
 v_QVI = solve_HJB_QVI(param,w)
-v_VI = solve_HJB_VI(param,w)
+vinit = -100000000*ones(Jn,Jz)
+v_VI = solve_HJB_VI(param,w,vinit=vinit)
 
 
 v_diff = maximum(abs.(v_QVI - v_VI))

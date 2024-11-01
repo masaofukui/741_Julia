@@ -118,6 +118,11 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0,update_v_fire=0)
     adj_or_not = []
     while iter < max_iter
         iter += 1
+        if update_v_fire == 1
+            v_fire = optimal_firing(param,vold)
+            v_fire = reshape(v_fire,Jn*Jz)
+            v_adjust = max.(underv,v_fire)
+        end
         dn = zeros(Jn,Jz)
         h = zeros(Jn,Jz)
         for i = 1:Jz
@@ -154,24 +159,20 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0,update_v_fire=0)
         end
         vold = copy(vnew)
         vold = reshape(vold,Jn,Jz)
-        if update_v_fire == 1
-            v_fire = optimal_firing(param,vold)
-            v_fire = reshape(v_fire,Jn*Jz)
-            v_adjust = max.(underv,v_fire)
-        end
+        
     end
     vnew = reshape(vnew,Jn,Jz)
     @assert iter < max_iter "Howard Algorithm did not converge"
     return vnew
 end
 
-function solve_HJB_VI(param,w)
+function solve_HJB_VI(param,w;vinit=0)
     @unpack_model param
     Az = populate_Az(param)
     v_adjust = -1e10*ones(Jn*Jz);
     pig = [ zg[i_z].^(1-alph).*ng[i_n].^alph .- w.*ng[i_n] .- cf for i_n = 1:Jn, i_z = 1:Jz]
     pig = reshape(pig,Jz*Jn)
-    v = Howard_Algorithm(param,Az,pig,v_adjust,update_v_fire=1)
+    v = Howard_Algorithm(param,Az,pig,v_adjust,update_v_fire=1,vinit=vinit)
     
     return v
 end
