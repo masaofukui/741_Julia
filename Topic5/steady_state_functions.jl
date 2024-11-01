@@ -62,15 +62,30 @@ function populate_An(param,dn)
     for (i_n,n) in enumerate(ng)
         for (i_z,z) in enumerate(zg)
             Deltan_plus = Delta_n[min(i_n,Jn-1)]
-            k += 1
-            A_row[k] = compute_nz_index(param,i_n,i_z)
-            A_col[k] = compute_nz_index(param,i_n,i_z)
-            A_val[k] = -dn[i_n,i_z].*z/Deltan_plus;
+            Deltan_minus = Delta_n[max(i_n-1,1)]
 
-            k += 1
-            A_row[k] = compute_nz_index(param,i_n,i_z)
-            A_col[k] = compute_nz_index(param,clamp(i_n+1,1,Jn),i_z)
-            A_val[k] = dn[i_n,i_z].*z/Deltan_plus;
+            if dn[i_n,i_z] > 0
+                k += 1
+                A_row[k] = compute_nz_index(param,i_n,i_z)
+                A_col[k] = compute_nz_index(param,i_n,i_z)
+                A_val[k] = -dn[i_n,i_z]/Deltan_plus;
+
+                k += 1
+                A_row[k] = compute_nz_index(param,i_n,i_z)
+                A_col[k] = compute_nz_index(param,clamp(i_n+1,1,Jn),i_z)
+                A_val[k] = dn[i_n,i_z]/Deltan_plus;
+            else
+                k += 1
+                A_row[k] = compute_nz_index(param,i_n,i_z)
+                A_col[k] = compute_nz_index(param,i_n,i_z)
+                A_val[k] = dn[i_n,i_z]/Deltan_minus;
+
+                k += 1
+                A_row[k] = compute_nz_index(param,i_n,i_z)
+                A_col[k] = compute_nz_index(param,clamp(i_n-1,1,Jn),i_z)
+                A_val[k] = -dn[i_n,i_z]/Deltan_minus;
+            end
+            
         end
     end
     An = sparse(A_row[1:k],A_col[1:k],A_val[1:k])
@@ -89,7 +104,7 @@ function optimal_firing(param,vold)
 end
 
 
-function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
+function Howard_Algorithm(param,Az,pig,v_fire;vinit=0,update_v_fire=0)
     @unpack_model param
     iter = 0;
     if vinit == 0
@@ -104,20 +119,27 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
     while iter < max_iter
         iter += 1
         dn = zeros(Jn,Jz)
+        h = zeros(Jn,Jz)
         for i = 1:Jz
-            dv_n = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
-            dv_n = [max.(dv_n,0);0]
-            dn[:,i] = h_fun.(dv_n) - s.*ng
+            dv_n_plus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
+            dv_n_plus = [dv_n_plus;0]
+            dn_plus = h_fun.(dv_n_plus) - s.*ng
+
+            dv_n_minus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
+            dv_n_minus = [0; dv_n_minus]
+            dn_minus = h_fun.(dv_n_minus) - s.*ng
+
+            dn[:,i] = dn_plus.*(dn_plus .> 0) + dn_minus.*(dn_minus .< 0);
+            h[:,i] = h_fun.(dv_n_plus).*(dn_plus .> 0) + h_fun.(dv_n_minus).*(dn_minus .< 0) + s.*ng.*(dn_plus .< 0).*(dn_minus .> 0);
         end
+
         An = populate_An(param,dn);
         A = Az + An;
         B = r*I - A;
-        dn_vec = reshape(dn,Jn*Jz)
-        pig_g = pig .- g_fun(dn_vec)
+        h_vec = reshape(h,Jn*Jz)
+        pig_g = pig .- g_fun(h_vec)
         vold = reshape(vold,Jz*Jn)
         
-
-
         RHS_noadjust =  (B*vold .- pig_g);
         RHS_adjust = vold  .- v_adjust
         adj_or_not =RHS_noadjust  .> RHS_adjust;
@@ -125,15 +147,20 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
         Btilde = (I-D)*B + D
         q = pig_g.*(1 .-adj_or_not) + v_adjust.*(adj_or_not)
         vnew = Btilde\q;
-        vdiff = norm(vnew - vold)
+        vdiff = maximum(abs.(vnew - vold))
         println("iter: ",iter," vdiff: ",vdiff)
-        if norm(vnew - vold) < 1e-8
+        if vdiff < 1e-4
             break
         end
         vold = copy(vnew)
         vold = reshape(vold,Jn,Jz)
-        
+        if update_v_fire == 1
+            v_fire = optimal_firing(param,vold)
+            v_fire = reshape(v_fire,Jn*Jz)
+            v_adjust = max.(underv,v_fire)
+        end
     end
+    vnew = reshape(vnew,Jn,Jz)
     @assert iter < max_iter "Howard Algorithm did not converge"
     return vnew
 end
@@ -144,14 +171,41 @@ function solve_HJB_VI(param,w)
     v_adjust = -1e10*ones(Jn*Jz);
     pig = [ zg[i_z].^(1-alph).*ng[i_n].^alph .- w.*ng[i_n] .- cf for i_n = 1:Jn, i_z = 1:Jz]
     pig = reshape(pig,Jz*Jn)
-    v = Howard_Algorithm(param,Az,pig,v_adjust)
-    underz_index = findlast(exit_or_not .> 0 )
-    if isnothing(underz_index)
-        underz_index = 1
-    end
-    return (v = v,underz_index = underz_index,
-    ng = ng,exit_or_not =exit_or_not)
+    v = Howard_Algorithm(param,Az,pig,v_adjust,update_v_fire=1)
+    
+    return v
 end
+
+
+function solve_HJB_QVI(param,w)
+    @unpack_model param
+    Az = populate_Az(param)
+    v_fire_old = -1e10*ones(Jn*Jz);
+    pig = [ zg[i_z].^(1-alph).*ng[i_n].^alph .- w.*ng[i_n] .- cf for i_n = 1:Jn, i_z = 1:Jz]
+    pig = reshape(pig,Jz*Jn)
+    v_fire_new = []
+    v_fire_new_mat = []
+    iter = 0;
+    while iter < max_iter
+        if iter == 0
+            v = Howard_Algorithm(param,Az,pig,v_fire_old)
+        else
+            v = Howard_Algorithm(param,Az,pig,v_fire_old,vinit=v_fire_new_mat)
+        end
+        v_fire_new_mat = optimal_firing(param,v);
+        v_fire_new = reshape(v_fire_new_mat,Jn*Jz)
+        vdiff = maximum(abs.(v_fire_new - v_fire_old))
+        println("outer loop iter: ",iter," vdiff: ",vdiff)
+        if vdiff < 1e-4
+            break
+        end
+        v_fire_old = copy(v_fire_new)
+        iter +=1
+    end
+    v_fire_new = reshape(v_fire_new,Jn,Jz)
+    return v_fire_new
+end
+
 
 function solve_w(param; calibration=0,tol=1e-8 )
     @unpack_model param
