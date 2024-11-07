@@ -113,7 +113,7 @@ end
 
 function solve_stationary_distribution(param,HJB_result)
     @unpack_model param
-    @unpack exit_or_not = HJB_result
+    @unpack exit_or_not,ng = HJB_result
     D = spdiagm(0 => exit_or_not)
     I_D = I-D;
     A = populate_A(param)
@@ -126,51 +126,13 @@ function solve_stationary_distribution(param,HJB_result)
 end
 
 param = model()
+@unpack zg = param
 HJB_result = solve_w(param)
-hatg = solve_stationary_distribution(param,HJB_result)
-
-
-
 v = HJB_result.v
-w = HJB_result.w
-ng = HJB_result.ng
-underz_index = HJB_result.underz_index
-plot(zg,v)
-zg[2]
 g = solve_stationary_distribution(param,HJB_result)
 
+# plot the value function
+plot(zg,v,title="Value Function",lw=6,label=:none)
 
-entry_rate = sum(m.*psig[underz_index:end].*dz)/sum(g.*dz)
-plot(zg,g)
-
-entrants_size = sum(zg[underz_index:end].*psig[underz_index:end].*dz)/sum(psig[underz_index:end].*dz)
-ave_size = sum(zg.*g.*dz)/sum(g.*dz)
-
-entrants_size/ave_size
-reverse_cumsum_g = reverse(cumsum(reverse(g)))/sum(g)
-emp500_cutoff = findlast(reverse_cumsum_g .> 0.0038)
-sum(ng[emp500_cutoff:end].*g[emp500_cutoff:end].*dz)/sum(ng.*g.*dz)
-
-plot(zg,g./sum(g))
-plot!(zg,(g.*ng)./sum(g.*ng))
-
-
-
-
-
-zg = range(1,20,length=10000)
-dz = zg[2] - zg[1]
-zeta = 2
-analytical_z = zeta.*(zg./zg[1]).^(-zeta-1)
-plot!(zg,analytical_z./sum(analytical_z))
-
-emp500_cutoff = 10
-sum(zg[emp500_cutoff:end].*analytical_z[emp500_cutoff:end].*dz)/sum(zg.*analytical_z.*dz)
-
-
-emp500_cutoff = 1
-sum(zg[emp500_cutoff:end].*analytical_z[emp500_cutoff:end].*dz)
-zeta/(zeta-1)*(zg[1])^zeta.*(zg[emp500_cutoff]).^(1-zeta)
-
-
-plot(zg,analytical_z)
+# plot the density of firm productivity distribution
+plot(zg,g,title="Density function",lw=6,label=:none)
