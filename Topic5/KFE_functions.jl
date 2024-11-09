@@ -1,15 +1,56 @@
 
-function solve_stationary_distribution(param,HJB_result,m)
+function construct_jump_matrix_M(param,HJB_result)
     @unpack_model param
-    @unpack exit_or_not = HJB_result
-    D = spdiagm(0 => exit_or_not)
-    I_D = I-D;
-    A = populate_A(param)
-    A = A - spdiagm(0 => eta*ones(J))
-    tildeA = A*I_D + D;
-    B = -I_D*tilde_psig;  
-    tildeg_nonuniform_normalized = (tildeA')\B;
-    tildeg_nonuniform = tildeg_nonuniform_normalized.*m
+    @unpack i_n_jump,exit_or_not,dn = HJB_result
+    
+    M_fire_row = 1:(Jn*Jz);
+    M_fire_col = ones(Int64,Jn*Jz)
+    M_fire_val = zeros(Int64,Jn*Jz)
+    for i_n in eachindex(ng)
+        for i_z in eachindex(zg)
+            indx = compute_nz_index(param,i_n,i_z)
+            if exit_or_not[i_n,i_z] == 0
+                M_fire_col[indx] = compute_nz_index(param,i_n_jump[i_n,i_z],i_z)
+                M_fire_val[indx] = 1
+            else
+                M_fire_col[indx] = indx
+                M_fire_val[indx] = 0
+            end
+        end
+    end
+    # M_fire[i,j] denotes when firm in state i jumps to fire to state j
+    M_fire = sparse(M_fire_row,M_fire_col,M_fire_val,Jn*Jz,Jn*Jz)
+
+    exit_or_not = reshape(exit_or_not,Jn*Jz)
+    # M_noexit takes one when firm survives
+    M_noexit = spdiagm(0 => 1 .- exit_or_not)
+
+    M = M_noexit + M_fire
+
+    # D is a diagonal matrix with 1 if firm jumps or exits
+    D = spdiagm(0=> diag(M) .== 0 )
+
+    return M,D
+end
+
+function solve_stationary_distribution(param,HJB_result)
+    @unpack_model param
+    @unpack dn = HJB_result
+    M,D = construct_jump_matrix_M(param,HJB_result)
+    Az = populate_Az(param)
+    An = populate_An(param,dn);
+    A = An + Az
+    tilde_psig_nz = (I-D)*tilde_psig_nz;
+
+    tildeg_nonuniform = []
+    tildeg_nonuniform_normalized = []
+
+    if nu == Inf
+        tildeg_nonuniform_normalized = (D + (A*M)')\(-tilde_psig_nz);
+        ng_repeat = repeat(ng,Jz)
+        m = sum(ng_repeat.*tildeg_nonuniform_normalized)/L
+        tildeg_nonuniform = tildeg_nonuniform_normalized.*m
+    end
 
     return (tildeg_nonuniform=tildeg_nonuniform,
             tildeg_nonuniform_normalized=tildeg_nonuniform_normalized)

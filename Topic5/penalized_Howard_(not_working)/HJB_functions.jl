@@ -92,31 +92,22 @@ function populate_An(param,dn)
     return An
 end
 
-function optimal_firing(param,vold; compute_policy=0)
+function optimal_firing(param,vold)
     vnew = copy(vold)
     @unpack_model param
+    Firing_matrix = zeros(Jn*Jz,Jn*Jz)
     for i_n in eachindex(ng)
         for i_z in eachindex(zg)
             vnew[i_n,i_z] = maximum(vold[1:i_n,i_z])
+            indx = argmax(vold[1:i_n,i_z])
+            Firing_matrix[compute_nz_index(param,i_n,i_z),compute_nz_index(param,indx,i_z)] = 1
         end
     end
-    i_n_jump = zeros(Int64,Jn,Jz)
-    exit_or_not = zeros(Int64,Jn,Jz)
-    if compute_policy == 1
-        for i_n in eachindex(ng)
-            for i_z in eachindex(zg)
-                exit_or_not[i_n,i_z] = (underv >= vnew[i_n,i_z])
-                if exit_or_not[i_n,i_z] == 0
-                    i_n_jump[i_n,i_z] = findfirst(vold[1:i_n,i_z] .== vnew[i_n,i_z])
-                end
-            end
-        end
-    end
-    return (v = vnew, i_n_jump = i_n_jump, exit_or_not = exit_or_not)
+    return vnew,Firing_matrix
 end
 
 
-function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
+function Howard_Algorithm(param,Az,pig,v_fire;vinit=0,update_v_fire=0)
     @unpack_model param
     iter = 0;
     if vinit == 0
@@ -128,12 +119,15 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
     A = copy(Az);
     v_adjust = max.(underv,v_fire)
     adj_or_not = []
-    dn = zeros(Jn,Jz)
-    h = zeros(Jn,Jz)
     while iter < max_iter
         iter += 1
-
-        
+        if update_v_fire == 1
+            v_fire = optimal_firing(param,vold)[1]
+            v_fire = reshape(v_fire,Jn*Jz)
+            v_adjust = max.(underv,v_fire)
+        end
+        dn = zeros(Jn,Jz)
+        h = zeros(Jn,Jz)
         for i = 1:Jz
             dv_n_plus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
             dv_n_plus = [dv_n_plus;0]
@@ -162,7 +156,7 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
         q = pig_g.*(1 .-adj_or_not) + v_adjust.*(adj_or_not)
         vnew = Btilde\q;
         vdiff = maximum(abs.(vnew - vold))
-        #println("iter: ",iter," vdiff: ",vdiff)
+        println("iter: ",iter," vdiff: ",vdiff)
         if vdiff < 1e-4
             break
         end
@@ -172,9 +166,86 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
     end
     vnew = reshape(vnew,Jn,Jz)
     @assert iter < max_iter "Howard Algorithm did not converge"
-    return (v = vnew, dn = dn)
+    return vnew
 end
 
+
+
+function Howard_Algorithm_penalized(param,Az,pig,v_fire;vinit=0,update_v_fire=0,epsilon=1e-1)
+    @unpack_model param
+    iter = 0;
+    if vinit == 0
+        vold = reshape(pig,Jn,Jz)./r;
+    else
+        vold = copy(vinit)
+    end
+    vnew = copy(vold);
+    A = copy(Az);
+    v_adjust = max.(underv,v_fire)
+    adj_or_not = []
+    while iter < max_iter
+        iter += 1
+        if update_v_fire == 1
+            v_fire,Firing_matrix = optimal_firing(param,vold)
+            v_fire = reshape(v_fire,Jn*Jz)
+            v_adjust = max.(underv,v_fire)
+            Firing_matrix[v_fire .< underv,:] .=0;
+            Firing_matrix = sparse(Firing_matrix)
+        end
+        dn = zeros(Jn,Jz)
+        h = zeros(Jn,Jz)
+        for i = 1:Jz
+            dv_n_plus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
+            dv_n_plus = [dv_n_plus;0]
+            dn_plus = h_fun.(dv_n_plus) - s.*ng
+
+            dv_n_minus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
+            dv_n_minus = [0; dv_n_minus]
+            dn_minus = h_fun.(dv_n_minus) - s.*ng
+
+            dn[:,i] = dn_plus.*(dn_plus .> 0) + dn_minus.*(dn_minus .< 0);
+            h[:,i] = h_fun.(dv_n_plus).*(dn_plus .> 0) + h_fun.(dv_n_minus).*(dn_minus .< 0) + s.*ng.*(dn_plus .< 0).*(dn_minus .> 0);
+        end
+
+        An = populate_An(param,dn);
+        A = Az + An;
+        B = r*I - A;
+        h_vec = reshape(h,Jn*Jz)
+        pig_g = pig .- g_fun(h_vec)
+        vold = reshape(vold,Jz*Jn)
+
+        adj_or_not = v_adjust - vold .> 0 
+        D = spdiagm(0 => adj_or_not)
+        Btilde = B + 1/epsilon .* (D - Firing_matrix)
+        q = pig_g
+        vnew = Btilde\q;
+        vdiff = maximum(abs.(vnew - vold))
+        println("iter: ",iter," vdiff: ",vdiff)
+        if vdiff < 1e-4
+            break
+        end
+        vold = copy(vnew)
+        vold = reshape(vold,Jn,Jz)
+        
+    end
+    vnew = reshape(vnew,Jn,Jz)
+    @assert iter < max_iter "Howard Algorithm did not converge"
+    return vnew
+end
+function solve_HJB_VI(param,w;vinit=0, penalized=1)
+    @unpack_model param
+    Az = populate_Az(param)
+    v_adjust = -1e10*ones(Jn*Jz);
+    pig = [ zg[i_z].^(1-alph).*ng[i_n].^alph .- w.*ng[i_n] .- cf for i_n = 1:Jn, i_z = 1:Jz]
+    pig = reshape(pig,Jz*Jn)
+    if penalized == 1
+        v = Howard_Algorithm_penalized(param,Az,pig,v_adjust,update_v_fire=1,vinit=vinit)
+    else
+        v = Howard_Algorithm(param,Az,pig,v_adjust,update_v_fire=1,vinit=vinit)
+    end
+
+    return v
+end
 
 
 function solve_HJB_QVI(param,w;max_iter_outer=100)
@@ -186,18 +257,13 @@ function solve_HJB_QVI(param,w;max_iter_outer=100)
     v_fire_new = []
     v_fire_new_mat = []
     iter = 0;
-    dn = [];
     while iter < max_iter_outer
         if iter == 0
-            vinit = 0 
+            v = Howard_Algorithm(param,Az,pig,v_fire_old)
         else
-            vinit = v_fire_new_mat
+            v = Howard_Algorithm(param,Az,pig,v_fire_old,vinit=v_fire_new_mat)
         end
-        result_hward = Howard_Algorithm(param,Az,pig,v_fire_old,vinit=vinit)
-        v = result_hward.v;
-        dn = result_hward.dn;
-        fire_result = optimal_firing(param,v)
-        v_fire_new_mat = fire_result.v;
+        v_fire_new_mat = optimal_firing(param,v)[1];
         v_fire_new = reshape(v_fire_new_mat,Jn*Jz)
         vdiff = maximum(abs.(v_fire_new - v_fire_old))
         println("outer loop iter: ",iter," vdiff: ",vdiff)
@@ -207,10 +273,54 @@ function solve_HJB_QVI(param,w;max_iter_outer=100)
         v_fire_old = copy(v_fire_new)
         iter +=1
     end
-    @assert iter < max_iter_outer "Outer loop did not converge"
     v_fire_new = reshape(v_fire_new,Jn,Jz)
-    fire_result = optimal_firing(param,v_fire_new;compute_policy=1)
-    i_n_jump = fire_result.i_n_jump
-    exit_or_not = fire_result.exit_or_not
-    return (v = v_fire_new, dn = dn,i_n_jump=i_n_jump,exit_or_not=exit_or_not)
+    return v_fire_new
+end
+
+
+function solve_w(param; calibration=0,tol=1e-8 )
+    @unpack_model param
+    w_ub = 20;
+    w_lb = 0;
+    w = (w_ub + w_lb)/2
+    excess_labor = 100
+    iter = 0
+    underz_index = [];
+    v = [];
+    ng = [];
+    ce_calibrate = [];
+    exit_or_not = [];
+    tildeg_nonuniform = [];
+    m = []
+    while iter < max_iter && abs(excess_labor) > tol
+        if calibration != 0
+            w = 0.78;
+        else
+            w = (w_ub + w_lb)/2
+        end
+        HJB_result = solve_HJB_VI(param,w)
+        @unpack v,underz_index,ng,exit_or_not = HJB_result
+        m = (sum(v.*tilde_psig)./ce)^(nu)
+        dist_result = solve_stationary_distribution(param,HJB_result,m)
+        @unpack tildeg_nonuniform = dist_result
+        excess_labor = sum(ng.*tildeg_nonuniform) - L
+        
+        if excess_labor > 0
+            w_lb = w
+        else
+            w_ub = w
+        end
+        println("iter: ",iter," w: ",w," excess labor demand: ",excess_labor)
+        iter += 1
+        if calibration != 0
+            ce_calibrate = sum(v.*tilde_psig)
+            break
+        end
+    end
+    @assert iter < max_iter
+    
+    return (w = w, v = v, underz_index  = underz_index,ng=ng,ce_calibrate = ce_calibrate,
+    exit_or_not = exit_or_not,
+    tildeg_nonuniform=tildeg_nonuniform,
+    m=m)
 end

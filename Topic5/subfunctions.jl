@@ -4,18 +4,19 @@ function compute_nz_index(param,i_n,i_z)
     return (i_z .-1).*Jn .+ i_n
 end
 
-function entry_dist(xi,zg,tilde_Delta_z,n_start)
+function entry_dist(xi,ng,zg,tilde_Delta_z,n_start)
     d = Pareto(xi, 0.1)
     psig = pdf(d,zg)
     tilde_psig = copy(psig)
-    J = length(zg)
-    for j = 1:J
+    Jz = length(zg)
+    Jn = length(ng)
+    for j = 1:Jz
         tilde_psig[j] = psig[j]*tilde_Delta_z[j]
     end
     tilde_psig = tilde_psig/sum(tilde_psig)
     
 
-    ndist = zeros(J)
+    ndist = zeros(Jn)
     ndist[n_start] = 1
     tilde_psig_nz = kron(tilde_psig,ndist)
     return tilde_psig_nz

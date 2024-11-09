@@ -26,16 +26,16 @@ fig_save = 0;
     L = 1
     underv = 0.0
     xi = 1.1
-    ce = 15
+    ce = 1
     tilde_Delta_z = [ Delta_z[1]; [(Delta_z[i]+Delta_z[i+1])/2 for i in 1:(Jz-2)]; Delta_z[end]]
     n_start = 1
-    tilde_psig_zn = entry_dist(xi,zg,tilde_Delta_z,n_start)
+    tilde_psig_nz = entry_dist(xi,ng,zg,tilde_Delta_z,n_start);
     max_iter = 1e3
     eta = 0.00
     dt = 2
     tg = 0:dt:300
     T = length(tg)
-    nu = 2
+    nu = Inf
     phi = 2
     s = 0.08
     g_fun = h -> phi/2 .* h.^2
@@ -45,25 +45,21 @@ end
 
 include("plot_functions.jl")
 include("HJB_functions.jl")
+include("KFE_functions.jl")
 include("subfunctions.jl")
 
 param = model()
 @unpack_model param
 w=1
-@time v_QVI = solve_HJB_QVI(param,w)
-vinit = -100000000*ones(Jn,Jz)
-@time v_VI = solve_HJB_VI(param,w,vinit=vinit,penalized=0)
-@time v_VI_penalized = solve_HJB_VI(param,w,vinit=vinit,penalized=1)
+result_free_entry = solve_w(param,calibration=1)
+w = result_free_entry.w
+HJB_result = result_free_entry.HJB_result
+ce_calibrate = result_free_entry.ce_calibrate
+dist_result = solve_stationary_distribution(param,HJB_result)
+tildeg_nonuniform = reshape(dist_result.tildeg_nonuniform,Jn,Jz)
+tildeg_nonuniform_n = sum(tildeg_nonuniform,dims=2)
+plot(log.(ng),log.(tildeg_nonuniform_n))
 
 
-v_diff = maximum(abs.(v_QVI - v_VI))
-v_diff = maximum(abs.(v_QVI - v_VI_penalized))
+@time HJB_result = solve_HJB_QVI(param,w)
 
-indx = findall(x -> x == v_diff, abs.(v_QVI - v_VI))
-
-zindx = 55
-plot(log.(ng),log.(v_QVI[:,zindx]))
-plot!(log.(ng),log.(v_VI[:,zindx]))
-plot!(log.(ng),log.(v_VI_penalized[:,zindx]))
-
-plot!(ng,v_VI[:,100])
