@@ -33,7 +33,7 @@ function construct_jump_matrix_M(param,HJB_result)
     return M,D
 end
 
-function solve_stationary_distribution(param,HJB_result)
+function solve_stationary_distribution(param,HJB_result;m=NaN)
     @unpack_model param
     @unpack dn = HJB_result
     M,D = construct_jump_matrix_M(param,HJB_result)
@@ -50,6 +50,9 @@ function solve_stationary_distribution(param,HJB_result)
         ng_repeat = repeat(ng,Jz)
         m = sum(ng_repeat.*tildeg_nonuniform_normalized)/L
         tildeg_nonuniform = tildeg_nonuniform_normalized.*m
+    else
+        @assert !isnan(m)
+        tildeg_nonuniform = (D + (A*M)')\(-m.*tilde_psig_nz);
     end
 
     return (tildeg_nonuniform=tildeg_nonuniform,
