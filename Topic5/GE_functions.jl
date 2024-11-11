@@ -9,7 +9,8 @@ function solve_w(param; calibration=0,tol=1e-8 )
     iter = 0
     v = [];
     ce_calibrate = [];
-    HJB_result = []
+    HJB_result = [];
+    dist_result = [];
     while iter < max_iter && abs(targeted_condition) > tol
         if calibration != 0
             w = 0.78;
@@ -44,6 +45,13 @@ function solve_w(param; calibration=0,tol=1e-8 )
         end
     end
     @assert iter < max_iter
+
+    if nu == Inf
+        dist_result = solve_stationary_distribution(param,HJB_result)
+    end
     
-    return (w=w, HJB_result=HJB_result,ce_calibrate=ce_calibrate)
+    return (w = w, 
+            HJB_result = HJB_result,
+            ce_calibrate = ce_calibrate,
+            dist_result = dist_result)
 end

@@ -19,14 +19,14 @@ function construct_jump_matrix_M(param,HJB_result)
         end
     end
     # M_fire[i,j] denotes when firm in state i jumps to fire to state j
-    M_fire = sparse(M_fire_row,M_fire_col,M_fire_val,Jn*Jz,Jn*Jz)
-
+    M = sparse(M_fire_row,M_fire_col,M_fire_val,Jn*Jz,Jn*Jz)
+    #=
     exit_or_not = reshape(exit_or_not,Jn*Jz)
     # M_noexit takes one when firm survives
     M_noexit = spdiagm(0 => 1 .- exit_or_not)
 
     M = M_noexit + M_fire
-
+    =#
     # D is a diagonal matrix with 1 if firm jumps or exits
     D = spdiagm(0=> diag(M) .== 0 )
 
@@ -35,7 +35,8 @@ end
 
 function solve_stationary_distribution(param,HJB_result;m=NaN)
     @unpack_model param
-    @unpack dn = HJB_result
+    @unpack dn,exit_or_not = HJB_result
+    @assert sum(exit_or_not) > 0 "No exit"
     M,D = construct_jump_matrix_M(param,HJB_result)
     Az = populate_Az(param)
     An = populate_An(param,dn);
@@ -59,6 +60,88 @@ function solve_stationary_distribution(param,HJB_result;m=NaN)
             tildeg_nonuniform_normalized=tildeg_nonuniform_normalized)
 end
 
+
+
+function compute_moments(param,ss_result)
+    @unpack_model param
+    HJB_result = ss_result.HJB_result
+    dist_result = ss_result.dist_result
+    @unpack dn,exit_or_not = HJB_result
+    @unpack tildeg_nonuniform = dist_result
+    M,D = construct_jump_matrix_M(param,HJB_result)
+    Az = populate_Az(param)
+    An = populate_An(param,dn);
+    A = An + Az
+    T_within_year = 10
+    dt_within_year = 1/T_within_year;
+    Delta_one_year =  (inv(I-Matrix(A*M)'.*dt_within_year))^T_within_year;
+    Delta_one_year = Delta_one_year'
+
+    dlZg = range(-0.2,0.2,length=5)
+    dlng_mass =  zeros(length(dlZg))
+    dlZg_mass = zeros(length(dlZg))
+    dln_Second = 0;
+    dln_First = 0;
+    dln_Mass = 0;
+
+    for (i_n,n) in enumerate(ng)
+        for (i_z,z) in enumerate(zg)
+            for (i_n_next,n_next) in enumerate(ng)
+                for (i_z_next,z_next) in enumerate(zg)
+                    current_index = compute_nz_index(param,i_n,i_z)
+                    next_index = compute_nz_index(param,i_n_next,i_z_next)
+                    dlZ = (1-alph).*(log(z_next) - log(z));
+
+                    if dlZ < dlZg[1] || dlZ > dlZg[end]
+                        continue
+                    end
+
+                    dlZ_indx, distance_to_up = closest_index(dlZg,dlZ)
+                    dln = log(n_next) - log(n);
+                    mass = tildeg_nonuniform[current_index]*Delta_one_year[current_index,next_index]
+                    dlZg_mass[dlZ_indx] += mass.*distance_to_up
+                    dlng_mass[dlZ_indx] += mass*dln.*distance_to_up
+                    dlZg_mass[dlZ_indx+1] += mass.*(1-distance_to_up)
+                    dlng_mass[dlZ_indx+1] += mass*dln.*(1-distance_to_up)
+
+                    dln_Mass += mass
+                    dln_First += mass*dln
+                    dln_Second += mass*dln^2
+                end
+            end
+        end
+    end
+
+    dlng = dlng_mass./dlZg_mass
+    dln_Mean = dln_First/dln_Mass
+    dln_Var = dln_Second/dln_Mass - dln_Mean^2
+    dln_std = sqrt(dln_Var)
+
+    tilde_psig_nz_mat = reshape(tilde_psig_nz,Jn,Jz)
+    
+    entry_rate = sum(m.*tilde_psig_nz_mat.*( 1 .- exit_or_not))/sum(tildeg_nonuniform)
+
+    tildeg_nonuniform_mat = reshape(tildeg_nonuniform,Jn,Jz)
+    tildeg_nonuniform_n = sum(tildeg_nonuniform_mat,dims=2)
+    ave_size = sum(ng.*tildeg_nonuniform_n)/sum(tildeg_nonuniform_n)
+
+
+    println("--------- Average Size -----------")
+    println(ave_size)
+    println("------ Entry Rate ------")
+    println(entry_rate)
+    println("--------- Std(dlog(n)) -----------")
+    println(dln_std)
+
+
+    return (dlng=dlng,
+            dln_Mean=dln_Mean,
+            dln_std=dln_std,
+            dlZg=dlZg,
+            entry_rate=entry_rate,
+            ave_size=ave_size)
+end
+
 function compute_calibration_targets(param,ss_result)
     @unpack_model param
     @unpack underz_index,ng,tildeg_nonuniform,m,w = ss_result
@@ -72,7 +155,7 @@ function compute_calibration_targets(param,ss_result)
     emp500_cutoff = findlast(reverse_cumsum_g .> 0.0038)
     share_500 = sum(ng[emp500_cutoff:end].*tildeg_nonuniform[emp500_cutoff:end])/sum(ng.*tildeg_nonuniform)
     Firm_mass = sum(tildeg_nonuniform)
-    Exit_rate = entry_rate - eta
+    Exit_rate = entry_rate 
     Exit = Exit_rate*Firm_mass
 
 

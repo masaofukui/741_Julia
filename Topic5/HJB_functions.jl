@@ -200,7 +200,9 @@ function solve_HJB_QVI(param,w;max_iter_outer=100)
         v_fire_new_mat = fire_result.v;
         v_fire_new = reshape(v_fire_new_mat,Jn*Jz)
         vdiff = maximum(abs.(v_fire_new - v_fire_old))
-        println("outer loop iter: ",iter," vdiff: ",vdiff)
+        if mod(iter,5) == 0
+            println("outer loop iter: ",iter," vdiff: ",vdiff)
+        end
         if vdiff < 1e-4
             break
         end
