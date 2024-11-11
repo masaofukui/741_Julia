@@ -2,7 +2,7 @@
 
 function solve_w(param; calibration=0,tol=1e-8 )
     @unpack_model param
-    w_ub = 20;
+    w_ub = 1;
     w_lb = 0;
     w = (w_ub + w_lb)/2
     targeted_condition = 100

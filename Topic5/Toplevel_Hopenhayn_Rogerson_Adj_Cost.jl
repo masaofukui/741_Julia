@@ -14,19 +14,19 @@ fig_save = 0;
     sig = 0.6
     zeta = 1.05
     mu = sig^2*(1-zeta)/2
-    lng = range(log(0.001),log(500),length=Jn)
+    lng = range(log(0.001),log(1000),length=Jn)
     lzg = range(log(0.001),log(1000),length=Jz)
     ng = exp.(lng)
     zg = exp.(lzg)
     Delta_z = diff(zg)
     Delta_n = diff(ng)
-    alph = 2/3
-    cf = 0.5
+    alph = 0.64
+    cf = 0.1
     r = 0.05
     L = 1
     underv = 0.0
     xi = 1.1
-    ce = 10
+    ce = 0.1
     tilde_Delta_z = [ Delta_z[1]; [(Delta_z[i]+Delta_z[i+1])/2 for i in 1:(Jz-2)]; Delta_z[end]]
     n_start = 1
     tilde_psig_nz = entry_dist(xi,ng,zg,tilde_Delta_z,n_start);
@@ -56,7 +56,9 @@ dist_result = ss_result.dist_result
 tildeg_nonuniform = ss_result.dist_result.tildeg_nonuniform
 tildeg_nonuniform_mat = reshape(tildeg_nonuniform,Jn,Jz)
 tildeg_nonuniform_n = sum(tildeg_nonuniform_mat,dims=2)
-plot(log.(ng),log.(tildeg_nonuniform_n))
+tildeg_nonuniform_z = sum(tildeg_nonuniform_mat,dims=1)'
+plot(log.(ng),(tildeg_nonuniform_n))
+plot(log.(zg),(tildeg_nonuniform_z))
 
 moments = compute_moments(param,ss_result)
 

@@ -137,14 +137,20 @@ function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
         for i = 1:Jz
             dv_n_plus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
             dv_n_plus = [dv_n_plus;0]
-            dn_plus = h_fun.(dv_n_plus) - s.*ng
+            h_plus = h_fun.(dv_n_plus)
+            dn_plus = h_plus - s.*ng
+            HF = -g_fun.(h_plus) + dv_n_plus.*dn_plus
 
             dv_n_minus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
             dv_n_minus = [0; dv_n_minus]
-            dn_minus = h_fun.(dv_n_minus) - s.*ng
+            h_minus = h_fun.(dv_n_minus)
+            dn_minus = h_minus - s.*ng
+            HB = -g_fun.(h_plus) + dv_n_minus.*dn_minus
 
-            dn[:,i] = dn_plus.*(dn_plus .> 0) + dn_minus.*(dn_minus .< 0);
-            h[:,i] = h_fun.(dv_n_plus).*(dn_plus .> 0) + h_fun.(dv_n_minus).*(dn_minus .< 0) + s.*ng.*(dn_plus .< 0).*(dn_minus .> 0);
+            
+            dn[:,i] = dn_plus.*(dn_plus .> 0).*(dn_minus .> 0) + dn_plus.*(HF .> HB).*(dn_plus .> 0).*(dn_minus .< 0 ) + dn_minus.*(dn_minus .< 0 ).*(dn_plus .< 0 ) + dn_minus.*(HF .< HB).*(dn_plus .> 0).*(dn_minus .< 0 );
+            h[:,i] = dn[:,i] + s.*ng; 
+
         end
 
         An = populate_An(param,dn);

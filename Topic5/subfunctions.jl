@@ -6,7 +6,7 @@ function compute_nz_index(param,i_n,i_z)
 end
 
 function entry_dist(xi,ng,zg,tilde_Delta_z,n_start)
-    d = Pareto(xi, 0.1)
+    d = Pareto(xi, minimum(zg))
     psig = pdf(d,zg)
     tilde_psig = copy(psig)
     Jz = length(zg)
@@ -16,9 +16,10 @@ function entry_dist(xi,ng,zg,tilde_Delta_z,n_start)
     end
     tilde_psig = tilde_psig/sum(tilde_psig)
     
-
+    n_start_grid,distance_to_up = closest_index(ng, n_start)
     ndist = zeros(Jn)
-    ndist[n_start] = 1
+    ndist[n_start_grid] = distance_to_up
+    ndist[n_start_grid + 1] = 1 - distance_to_up
     tilde_psig_nz = kron(tilde_psig,ndist)
     return tilde_psig_nz
 end
