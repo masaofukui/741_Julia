@@ -57,7 +57,8 @@ function solve_stationary_distribution(param,HJB_result;m=NaN)
     end
 
     return (tildeg_nonuniform=tildeg_nonuniform,
-            tildeg_nonuniform_normalized=tildeg_nonuniform_normalized)
+            tildeg_nonuniform_normalized=tildeg_nonuniform_normalized,
+            m = m)
 end
 
 
@@ -67,7 +68,7 @@ function compute_moments(param,ss_result)
     HJB_result = ss_result.HJB_result
     dist_result = ss_result.dist_result
     @unpack dn,exit_or_not = HJB_result
-    @unpack tildeg_nonuniform = dist_result
+    @unpack tildeg_nonuniform,m = dist_result
     M,D = construct_jump_matrix_M(param,HJB_result)
     Az = populate_Az(param)
     An = populate_An(param,dn);

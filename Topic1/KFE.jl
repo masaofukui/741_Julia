@@ -5,22 +5,24 @@ using Parameters
     sig = 0.1
     mu = -0.01
     ng = range(1.0,6,length=J)
-    dn = ng[2] - ng[1]
+    Delta_n = ng[2] - ng[1]
     zeta = 1 - 2*mu/sig^2
 end
 function populate_A(param)
     @unpack_model param
     A = spzeros(length(ng),length(ng))
     for (i,n) in enumerate(ng)
-        A[i,i] += -(sig*n)^2/dn^2;
-        A[i,min(i+1,J)] += 1/2*(sig*n)^2/dn^2;
-        A[i,max(i-1,1)] += 1/2*(sig*n)^2/dn^2;
-        if mu > 0
-            A[i,i] += -mu*n/dn;
-            A[i,min(i+1,J)] += mu*n/dn;
+        mu_n = mu*n
+        sig_n = sig*n
+        A[i,i] += -(sig_n)^2/Delta_n^2;
+        A[i,min(i+1,J)] += 1/2*(sig_n)^2/Delta_n^2;
+        A[i,max(i-1,1)] += 1/2*(sig_n)^2/Delta_n^2;
+        if mu_n > 0
+            A[i,i] += -mu_n/Delta_n;
+            A[i,min(i+1,J)] += mu_n/Delta_n;
         else
-            A[i,i] += mu*n/dn;
-            A[i,max(i-1,1)] += -mu*n/dn; 
+            A[i,i] += mu_n/Delta_n;
+            A[i,max(i-1,1)] += -mu_n/Delta_n; 
         end
     end 
     return A
@@ -30,7 +32,7 @@ function solve_stationary_distribution(param)
     A = populate_A(param)
     B = zeros(length(ng));  
     B[end] = 1;
-    A[end,:] = ones(1,length(ng))*dn;
+    A[end,:] = ones(1,length(ng))*Delta_n;
     g = A'\B;
     return g
 end
@@ -44,9 +46,9 @@ using Plots
 colplot_blue = palette(:Blues_4);
 colplot_red = palette(:Reds_3);
 
-g = g./sum(g.*dn)
+g = g./sum(g.*Delta_n)
 analytical_n = zeta.*ng.^(-zeta-1)
-analytical_n = analytical_n./sum(analytical_n.*dn)
+analytical_n = analytical_n./sum(analytical_n.*Delta_n)
 plt_dist = plot(ng,g,label="Numerical",lw=6,color=colplot_blue[2])
 plot!(ng,analytical_n,lw=6,linestyle = :dash,color=colplot_blue[4],label="Analytical")
 plot!(xlabel="n",title= "Density of Firm Size Distribution, g(n)")
@@ -63,7 +65,7 @@ plot!(cb=:none)
 savefig(plt_A,"./figure/spyA.pdf")
 
 
-G = cumsum(g.*dn);
+G = cumsum(g.*Delta_n);
 G_analytical = 1 .- ng.^(-zeta);
 ranking = 1 .- G;
 ranking_analytical = 1 .- G_analytical;
@@ -88,7 +90,7 @@ dt = 0.1;
 T = 5000;
 A = populate_A(param);
 gpath = zeros(J,T);
-gpath[:,1] = ones(J)./(J*dn);
+gpath[:,1] = ones(J)./(J*Delta_n);
 for t = 2:T
     gpath[:,t] = (I - dt*A')\gpath[:,t-1]
 end

@@ -11,11 +11,11 @@ fig_save = 0;
 @with_kw mutable struct model
     Jn = 100
     Jz = 60
-    sig = 0.6
+    sig = 0.41
     zeta = 1.05
     mu = sig^2*(1-zeta)/2
-    lng = range(log(0.001),log(1000),length=Jn)
-    lzg = range(log(0.001),log(1000),length=Jz)
+    lng = range(log(0.001),log(2300000),length=Jn)
+    lzg = range(log(0.001),log(2300000),length=Jz)
     ng = exp.(lng)
     zg = exp.(lzg)
     Delta_z = diff(zg)
@@ -37,8 +37,9 @@ fig_save = 0;
     nu = 5
     phi = 10
     s = 0.00
-    g_fun = h -> phi/2 .* h.^2
-    h_fun = (dv) -> max.(dv,0) ./phi
+    kappa = 2;
+    g_fun = (h,n) -> phi/kappa .* (h./n).^kappa.*n
+    h_fun = (dv,n) -> (max.(dv,0) ./phi).^(1/(kappa-1)).*n 
 end
 
 
@@ -60,10 +61,15 @@ tildeg_nonuniform_z = sum(tildeg_nonuniform_mat,dims=1)'
 plot(log.(ng),(tildeg_nonuniform_n))
 plot(log.(zg),(tildeg_nonuniform_z))
 
+tildeg_nonuniform_n = tildeg_nonuniform_n[:]
+G = reverse(cumsum(reverse(tildeg_nonuniform_n)))/sum(tildeg_nonuniform_n)
+plt_power_law= plot(log.(ng),log.(G),label="Model",lw=3)
+  
+
 moments = compute_moments(param,ss_result)
 
 plot(moments.dlZg,moments.dlng)
 moments.entry_rate
-tilde_psig_nz = reshape(tilde_psig_nz,Jn,Jz)
-tilde_psig_z = sum(tilde_psig_nz,dims=2)
-plot(zg,tilde_psig_z')
+tilde_psig_nz_mat = reshape(tilde_psig_nz,Jn,Jz)
+tilde_psig_z = sum(tilde_psig_nz_mat,dims=1)
+plot(log.(zg),tilde_psig_z')
