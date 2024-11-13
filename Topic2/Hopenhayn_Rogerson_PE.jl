@@ -63,6 +63,7 @@ function Howard_Algorithm(param,B)
     iter = 1;
     vold = zeros(length(zg));
     vnew = copy(vold);
+    exit_or_not = [];
     while iter < max_iter
         val_noexit =  (B*vold .- pig);
         val_exit = vold  .- underv

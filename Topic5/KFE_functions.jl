@@ -78,7 +78,7 @@ function compute_moments(param,ss_result)
     Delta_one_year =  (inv(I-Matrix(A*M)'.*dt_within_year))^T_within_year;
     Delta_one_year = Delta_one_year'
 
-    dlZg = range(-0.2,0.2,length=5)
+    dlZg = range(-(1-alph)*1.5*sig,(1-alph)*1.5*sig,length=5)
     dlng_mass =  zeros(length(dlZg))
     dlZg_mass = zeros(length(dlZg))
     dln_Second = 0;

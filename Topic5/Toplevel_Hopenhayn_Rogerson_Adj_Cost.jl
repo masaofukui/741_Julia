@@ -14,8 +14,8 @@ fig_save = 0;
     sig = 0.41
     zeta = 1.05
     mu = sig^2*(1-zeta)/2
-    lng = range(log(0.001),log(2300000),length=Jn)
-    lzg = range(log(0.001),log(2300000),length=Jz)
+    lng = range(log(0.01),log(2300000),length=Jn)
+    lzg = range(log(0.01),log(2300000),length=Jz)
     ng = exp.(lng)
     zg = exp.(lzg)
     Delta_z = diff(zg)
@@ -26,9 +26,9 @@ fig_save = 0;
     L = 1
     underv = 0.0
     xi = 1.1
-    ce = 0.1
+    ce = 0.5
     tilde_Delta_z = [ Delta_z[1]; [(Delta_z[i]+Delta_z[i+1])/2 for i in 1:(Jz-2)]; Delta_z[end]]
-    n_start = 1
+    n_start = 5
     tilde_psig_nz = entry_dist(xi,ng,zg,tilde_Delta_z,n_start);
     max_iter = 1e3
     dt = 2
