@@ -13,7 +13,7 @@ function solve_w(param; calibration=0,tol=1e-8 )
     dist_result = [];
     while iter < max_iter && abs(targeted_condition) > tol
         if calibration != 0
-            w = 0.78;
+            w = 0.15;
         else
             w = (w_ub + w_lb)/2
         end
@@ -49,9 +49,34 @@ function solve_w(param; calibration=0,tol=1e-8 )
     if nu == Inf
         dist_result = solve_stationary_distribution(param,HJB_result)
     end
+
+    @unpack exit_or_not,pig = HJB_result
+    @unpack tildeg_nonuniform,m = dist_result
+
+    tilde_psig_nz_mat = reshape(tilde_psig_nz,Jn,Jz)
     
-    return (w = w, 
+    entry_rate = sum(m.*tilde_psig_nz_mat.*( 1 .- exit_or_not))/sum(tildeg_nonuniform)
+
+    tildeg_nonuniform_mat = reshape(tildeg_nonuniform,Jn,Jz)
+    tildeg_nonuniform_n = sum(tildeg_nonuniform_mat,dims=2)
+    ave_size = sum(ng.*tildeg_nonuniform_n)/sum(tildeg_nonuniform_n)
+
+    ng_repeat = repeat(ng,Jz)
+    TFP = (w.*sum(ng_repeat.*tildeg_nonuniform) + sum(pig.*tildeg_nonuniform) - sum(m.*ce))/L
+            
+    println("--------- Average Size -----------")
+    println(ave_size)
+    println("------ Entry Rate ------")
+    println(entry_rate)
+ 
+    
+    return (
+        w = w, 
             HJB_result = HJB_result,
             ce_calibrate = ce_calibrate,
-            dist_result = dist_result)
+            dist_result = dist_result,
+            entry_rate=entry_rate,
+            ave_size = ave_size,
+            TFP=TFP
+    )
 end

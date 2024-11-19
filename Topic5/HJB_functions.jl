@@ -92,12 +92,13 @@ function populate_An(param,dn)
     return An
 end
 
-function optimal_firing(param,vold; compute_policy=0)
+function optimal_firing(param,vold,w; compute_policy=0)
     vnew = copy(vold)
     @unpack_model param
     for i_n in eachindex(ng)
         for i_z in eachindex(zg)
-            vnew[i_n,i_z] = maximum(vold[1:i_n,i_z])
+            firing_cost = tau_f*w*(ng[i_n] .- ng[1:i_n])
+            vnew[i_n,i_z] = maximum(vold[1:i_n,i_z]-firing_cost)
         end
     end
     i_n_jump = zeros(Int64,Jn,Jz)
@@ -105,9 +106,10 @@ function optimal_firing(param,vold; compute_policy=0)
     if compute_policy == 1
         for i_n in eachindex(ng)
             for i_z in eachindex(zg)
+                firing_cost = tau_f*w*(ng[i_n] .- ng[1:i_n])
                 exit_or_not[i_n,i_z] = (underv >= vnew[i_n,i_z])
                 if exit_or_not[i_n,i_z] == 0
-                    i_n_jump[i_n,i_z] = findfirst(vold[1:i_n,i_z] .== vnew[i_n,i_z])
+                    i_n_jump[i_n,i_z] = findfirst(vold[1:i_n,i_z]-firing_cost .== vnew[i_n,i_z])
                 end
             end
         end
@@ -205,7 +207,7 @@ function solve_HJB_QVI(param,w;max_iter_outer=100)
         result_hward = Howard_Algorithm(param,Az,pig,v_fire_old,vinit=vinit)
         v = result_hward.v;
         dn = result_hward.dn;
-        fire_result = optimal_firing(param,v)
+        fire_result = optimal_firing(param,v,w)
         v_fire_new_mat = fire_result.v;
         v_fire_new = reshape(v_fire_new_mat,Jn*Jz)
         vdiff = maximum(abs.(v_fire_new - v_fire_old))
@@ -220,8 +222,8 @@ function solve_HJB_QVI(param,w;max_iter_outer=100)
     end
     @assert iter < max_iter_outer "Outer loop did not converge"
     v_fire_new = reshape(v_fire_new,Jn,Jz)
-    fire_result = optimal_firing(param,v_fire_new;compute_policy=1)
+    fire_result = optimal_firing(param,v_fire_new,w;compute_policy=1)
     i_n_jump = fire_result.i_n_jump
     exit_or_not = fire_result.exit_or_not
-    return (v = v_fire_new, dn = dn,i_n_jump=i_n_jump,exit_or_not=exit_or_not)
+    return (v = v_fire_new, dn = dn,i_n_jump=i_n_jump,exit_or_not=exit_or_not,pig=pig)
 end

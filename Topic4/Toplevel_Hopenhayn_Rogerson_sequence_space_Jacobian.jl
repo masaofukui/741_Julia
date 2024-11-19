@@ -44,6 +44,7 @@ include("transition_functions.jl")
 #change this to either "eta" or "exit"
 shock = "eta"
 param = model(nu=2)
+@unpack_model param
 IRF_path,Jacobian_dict = SSJ_wrapper(param,shock=shock)
 param_high_nu = model(nu=10)
 IRF_path_high_nu,Jacobian_dict_high_nu = SSJ_wrapper(param_high_nu,shock=shock)
@@ -73,15 +74,28 @@ default_colors = palette(:auto)
 shock_index = [1,21,41]
 shock_label = ["s = "*string((shock_index[i]-1)*dt) for i in eachindex(shock_index)]
 
-plot(tg, Jacobian_dict["w"]["N"][:,shock_index],lw=2,label=permutedims(shock_label),color=default_colors[1:length(shock_index)]')
-plot!(tg, Jacobian_dict_high_nu["w"]["N"][:,shock_index],lw=2,label=:none,linestyle=:dash,color=default_colors[1:length(shock_index)]')
+
+plot(tg, Jacobian_dict["w"]["N"][:,shock_index[1]],lw=3,label=permutedims(shock_label),color=default_colors[1:length(shock_index)]')
+plot!(tg, Jacobian_dict_high_nu["w"]["N"][:,shock_index[1]],lw=3,label=:none,linestyle=:dash,color=default_colors[1:length(shock_index)]')
 xlims!(0,100)
+ylims!(-0.08,0)
 xlabel!("t")
 plot!(titlefontfamily = "Computer Modern",
 xguidefontfamily = "Computer Modern",
 yguidefontfamily = "Computer Modern",
 legendfontfamily = "Computer Modern",
 titlefontsize=20,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
+if fig_save == 1
+    savefig("./figure/Jacobian_N_w_shock_"*shock*"_"*string(1)*".pdf")
+end
+for i in 2:length(shock_index)
+    plot!(tg, Jacobian_dict["w"]["N"][:,shock_index[i]],lw=3,label=permutedims(shock_label)[i],color=default_colors[i]')
+    plot!(tg, Jacobian_dict_high_nu["w"]["N"][:,shock_index[i]],lw=3,label=:none,linestyle=:dash,color=default_colors[i]')
+    if fig_save == 1
+        savefig("./figure/Jacobian_N_w_shock_"*shock*"_"*string(i)*".pdf")
+    end
+end
+
 if fig_save == 1
     savefig("./figure/Jacobian_N_w_shock_"*shock*".pdf")
 end

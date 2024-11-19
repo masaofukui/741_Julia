@@ -49,7 +49,7 @@ function solve_stationary_distribution(param,HJB_result;m=NaN)
     if nu == Inf
         tildeg_nonuniform_normalized = (D + (A*M)')\(-tilde_psig_nz);
         ng_repeat = repeat(ng,Jz)
-        m = sum(ng_repeat.*tildeg_nonuniform_normalized)/L
+        m = L/sum(ng_repeat.*tildeg_nonuniform_normalized)
         tildeg_nonuniform = tildeg_nonuniform_normalized.*m
     else
         @assert !isnan(m)
@@ -78,7 +78,9 @@ function compute_moments(param,ss_result)
     Delta_one_year =  (inv(I-Matrix(A*M)'.*dt_within_year))^T_within_year;
     Delta_one_year = Delta_one_year'
 
-    dlZg = range(-(1-alph)*1.5*sig,(1-alph)*1.5*sig,length=5)
+    Delta_lz = diff(log.(zg))[1]
+
+    dlZg = range(-Delta_lz,Delta_lz,length=3)
     dlng_mass =  zeros(length(dlZg))
     dlZg_mass = zeros(length(dlZg))
     dln_Second = 0;
@@ -91,9 +93,12 @@ function compute_moments(param,ss_result)
                 for (i_z_next,z_next) in enumerate(zg)
                     current_index = compute_nz_index(param,i_n,i_z)
                     next_index = compute_nz_index(param,i_n_next,i_z_next)
-                    dlZ = (1-alph).*(log(z_next) - log(z));
+                    dlZ = (log(z_next) - log(z));
 
                     if dlZ < dlZg[1] || dlZ > dlZg[end]
+                        continue
+                    end
+                    if Delta_one_year[current_index,next_index] == 0
                         continue
                     end
 

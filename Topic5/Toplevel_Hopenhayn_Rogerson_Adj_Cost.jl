@@ -34,10 +34,11 @@ fig_save = 0;
     dt = 2
     tg = 0:dt:300
     T = length(tg)
-    nu = 5
+    nu = Inf
     phi = 10
     s = 0.00
-    kappa = 2;
+    kappa = 2
+    tau_f = 0.0
     g_fun = (h,n) -> phi/kappa .* (h./n).^kappa.*n
     h_fun = (dv,n) -> (max.(dv,0) ./phi).^(1/(kappa-1)).*n 
 end
@@ -51,8 +52,9 @@ include("subfunctions.jl")
 
 param = model()
 @unpack_model param
-ss_result = solve_w(param,calibration=0,tol=0.01)
+ss_result = solve_w(param,calibration=1,tol=0.01)
 HJB_result = ss_result.HJB_result
+@unpack exit_or_not =HJB_result
 dist_result = ss_result.dist_result
 tildeg_nonuniform = ss_result.dist_result.tildeg_nonuniform
 tildeg_nonuniform_mat = reshape(tildeg_nonuniform,Jn,Jz)
@@ -68,8 +70,92 @@ plt_power_law= plot(log.(ng),log.(G),label="Model",lw=3)
 
 moments = compute_moments(param,ss_result)
 
-plot(moments.dlZg,moments.dlng)
-moments.entry_rate
-tilde_psig_nz_mat = reshape(tilde_psig_nz,Jn,Jz)
-tilde_psig_z = sum(tilde_psig_nz_mat,dims=1)
-plot(log.(zg),tilde_psig_z')
+################################################################
+# Plot firing regulation
+################################################################
+no_phi_zero = 1
+plot(moments.dlZg.*(1-alph),moments.dlng,lw=6,label="\\phi=10")
+if no_phi_zero == 0
+    plot!(moments.dlZg.*(1-alph),moments.dlZg,lw=6,label="\\phi=0",linestyle=:dash)
+    ylims!(-0.1,0.1)
+    plot!(legend=:topleft)
+else
+    plot!(legend=:none)
+end
+plot!(xlabel="\\Delta log Z",ylabel="\\Delta log n")
+plot!(titlefontfamily = "Computer Modern",
+    xguidefontfamily = "Computer Modern",
+    yguidefontfamily = "Computer Modern",
+    legendfontfamily = "Computer Modern",
+    titlefontsize=20,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
+if fig_save == 1
+    savefig("./figure/slow_to_hire_quick_to_fire_no_phi_"*string(no_phi_zero)*".pdf")
+end
+
+using CSV
+using DataFrames
+using Plots
+df = CSV.read("./Topic5/data/OECD.ELS.JAI,DSD_EPL@DF_EPL,+all.csv", DataFrame)
+df = filter(row -> row.TIME_PERIOD == 2019,df)
+df = filter(row -> row.VERSION == "VERSION4",df)
+df = filter(row -> row.MEASURE == "EPL_OV",df)
+df = sort(df,:OBS_VALUE,rev=false)
+colors = [country == "USA" ? :red : :lightblue for country in  df[!,:REF_AREA]]
+
+
+bar(df[!,:OBS_VALUE], xlabel="", ylabel="", title="Employment Protection Index",xticks=(1:nrow(df), df[!,:REF_AREA]),xrotation=45,
+xtickfont=font(6, "Computer Modern"),
+seriescolor=colors,
+size=(600,350)
+)
+bar!(legend=:none)
+bar!(titlefontfamily = "Computer Modern",
+    xguidefontfamily = "Computer Modern",
+    yguidefontfamily = "Computer Modern",
+    legendfontfamily = "Computer Modern",
+    titlefontsize=15,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
+if fig_save ==1
+    savefig("./figure/Employment_Protection_Index.pdf")
+end
+
+
+##########################################################
+# Firing cost
+##########################################################
+param = model()
+@unpack_model param
+ss_result = solve_w(param,calibration=1,tol=0.01)
+ce_calibrate = ss_result.ce_calibrate
+tau_f_grid = range(0.0,0.6,step=0.2)
+firing_outcome = Dict{String,Any}()
+firing_outcome["w"] = zeros(length(tau_f_grid))
+firing_outcome["ave_size"] = copy(wgrid)
+firing_outcome["entry_rate"] = copy(wgrid)
+firing_outcome["LP"] = copy(wgrid)
+
+for (itau,tau) in enumerate(tau_f_grid)
+    param = model(ce=ce_calibrate,tau_f=tau)
+    ss_result = solve_w(param,calibration=0,tol=0.01)
+    firing_outcome["w"][itau] = ss_result.w
+    firing_outcome["ave_size"][itau] = ss_result.ave_size
+    firing_outcome["entry_rate"][itau] = ss_result.entry_rate
+    firing_outcome["LP"][itau] = ss_result.TFP    
+end
+
+title_label = Dict("w"=>"Wage","ave_size"=>"Average Size","entry_rate"=>"Entry Rate","LP"=>"Labor Productivity")
+plt = Dict{String,Any}()
+for y in ["w","LP"]
+    plt[y]=plot(tau_f_grid,firing_outcome[y],lw=6,title=title_label[y],legend=:none)
+    xlabel!("Firing cost, \\tau")
+    plot!(grid=:y)
+    plot!(titlefontfamily = "Computer Modern",
+        xguidefontfamily = "Computer Modern",
+        yguidefontfamily = "Computer Modern",
+        legendfontfamily = "Computer Modern",
+        titlefontsize=15,xguidefontsize=12,legendfontsize=12,yguidefontsize=12)
+end
+plot(plt["w"],plt["LP"],layout=(1,2),size=(1200,400))
+plot!(margin=6mm)
+if fig_save == 1
+    savefig("./figure/Firing_cost.pdf")
+end
