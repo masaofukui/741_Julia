@@ -6,6 +6,7 @@ The course covers heterogeneous firm models with a particular focus on the deter
 * Topic 1: Firm size distribution (Gabaix, 1999).
   * [KFE.jl](https://github.com/masaofukui/741_Julia/blob/main/Topic1/KFE.jl): Code to solve Kolmogorov Forward Equation to obtain the firm size distirbution in the steady state and in the transition.
 * Topic 2: Canonical model of firm dynamics (Hopenhayn and Rogerson, 1993)
+* [a](./Topic2/Hopenhayn_Rogerson_GE.jl)
 * Topic 3: Declining Business Dynamism and Transition Dynamics with Free-entry (Karahan, Şahin, and Pugsley, 2024)
 * Topic 4: Transition Dynamics without Free-entry (Auclert, Bardóczy, Rognlie, and Straub, 2021)
 * Topic 5: Firm Dynamics with Labor Adjustment Costs (Hopenhayn and Rogerson, 1993)
