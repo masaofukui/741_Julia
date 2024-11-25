@@ -12,6 +12,7 @@ The course covers heterogeneous firm models with a particular focus on the deter
   * [Hopenhayn_Rogerson_GE_non_uniform_grid.jl](./Topic2/Hopenhayn_Rogerson_GE_non_uniform_grid.jl): Code to solve the general equilibrium of Hopenhayn-Rogerson model with a non-uniform grid.
 
 * Topic 3: Declining Business Dynamism and Transition Dynamics with Free-entry (Karahan, Şahin, and Pugsley, 2024)
+  * [Toplevel_Hopenhayn_Rogerson_business_dynamism.jl](Topic3/Toplevel_Hopenhayn_Rogerson_business_dynamism.jl): Top-level code to study comparative statics across steady states and transition dynamics in response to change in population growth rates and other parameters.
 * Topic 4: Transition Dynamics without Free-entry (Auclert, Bardóczy, Rognlie, and Straub, 2021)
 * Topic 5: Firm Dynamics with Labor Adjustment Costs (Hopenhayn and Rogerson, 1993)
 * Topic 6: Firm Dynamics in a Frictional Labor Market (McCrary, 2024)
