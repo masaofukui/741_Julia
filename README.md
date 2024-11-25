@@ -2,7 +2,7 @@
 
 This repository has Julia codes for the second part of EC741, a part of the second-year macro sequence at Boston University, as taught in fall 2024.
 
-The course covers heterogeneous firm models with a particular focus on the determinants of aggregate labor demand. Most of the codes are written in continuous time.
+The course covers heterogeneous firm models with a particular focus on the determinants of aggregate labor demand. All the codes are written in continuous time.
 * Topic 1: Firm size distribution (Gabaix, 1999).
   * [KFE.jl](./Topic1/KFE.jl): Code to solve Kolmogorov Forward Equation to obtain the firm size distribution in the steady state and in the transition.
 
