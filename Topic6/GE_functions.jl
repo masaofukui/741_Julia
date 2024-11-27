@@ -1,46 +1,56 @@
 
 
-function solve_w(param; calibration=0,tol=1e-8 )
+function solve_U_theta(param; calibration=0,tol=1e-8, U=10)
     @unpack_model param
-    w_ub = 1;
-    w_lb = 0;
-    w = (w_ub + w_lb)/2
+    
     targeted_condition = 100
     iter = 0
-    v = [];
+    S = [];
     ce_calibrate = [];
     HJB_result = [];
     dist_result = [];
+    theta_lb = 0;
+    theta_ub = 10;
+    theta = 1;
     while iter < max_iter && abs(targeted_condition) > tol
-        if calibration != 0
-            w = 0.15;
+        if calibration == 1
+            theta = 1;
         else
-            w = (w_ub + w_lb)/2
+            theta = (theta_ub + theta_lb)/2
         end
         HJB_result = solve_HJB_QVI(param,theta,U)
-        v = HJB_result.v
-        v_vec = reshape(v,Jn*Jz)
+        S = HJB_result.S
+        S_vec = reshape(S,Jn*Jz)
         if nu == Inf
-            free_entry = sum(v_vec.*tilde_psig_nz) - ce
+            free_entry = sum(S_vec.*tilde_psig_nz.*(1-gamma)) - ce
             targeted_condition = copy(free_entry)
-            println("iter: ",iter," w: ",w," free entry error: ",targeted_condition)
+            println("iter: ",iter," theta: ",theta," free entry error: ",targeted_condition)
+            
         else
-            m = (sum(v_vec.*tilde_psig_nz)./ce)^(nu)
+            m = (sum(S_vec.*tilde_psig_nz.*(1-gamma))./ce)^(nu)
             dist_result = solve_stationary_distribution(param,HJB_result,m=m)
             tildeg_nonuniform = dist_result.tildeg_nonuniform
-            ng_repeat = repeat(ng,Jz)
-            excess_labor_demand = sum(ng_repeat.*tildeg_nonuniform) - L
-            targeted_condition = copy(excess_labor_demand)
-            println("iter: ",iter," w: ",w," excess labor demand: ",excess_labor_demand)
+            vacancy = HJB_result.vacancy
+            employment = sum(ng_repeat.*tildeg_nonuniform);
+            vacancy_vec = reshape(vacancy,Jn*Jz)
+            agg_vacancy = sum(ng_repeat.*tildeg_nonuniform) - L
+            if employment > L
+                theta_new = 1e10;
+            else
+                theta_new = agg_vacancy/(L-employment)
+            end
+            targeted_condition = copy(theta_new-theta)
+            println("iter: ",iter," theta: ",theta," excess labor demand: ",excess_labor_demand)
         end
         if targeted_condition > 0
-            w_lb = w
+            theta_lb = theta
         else
-            w_ub = w
+            theta_ub = theta
         end
+
         iter += 1
         if calibration != 0 && nu == Inf
-            ce_calibrate = sum(v_vec.*tilde_psig_nz)
+            ce_calibrate = sum(S_vec.*tilde_psig_nz.*(1-gamma))
             break
         end
     end
@@ -61,22 +71,25 @@ function solve_w(param; calibration=0,tol=1e-8 )
     tildeg_nonuniform_n = sum(tildeg_nonuniform_mat,dims=2)
     ave_size = sum(ng.*tildeg_nonuniform_n)/sum(tildeg_nonuniform_n)
 
-    ng_repeat = repeat(ng,Jz)
-    TFP = (w.*sum(ng_repeat.*tildeg_nonuniform) + sum(pig.*tildeg_nonuniform) - sum(m.*ce))/L
             
     println("--------- Average Size -----------")
     println(ave_size)
     println("------ Entry Rate ------")
     println(entry_rate)
  
+    # compute implied b
+    ng_repeat = repeat(ng,Jz)
+    S = HJB_result.S
+    S_vec = reshape(S,Jn*Jz)
+    b = r*U - lambdafun(theta)*gamma*sum(S_vec./ng_repeat.*tildeg_nonuniform)
     
     return (
-        w = w, 
+            theta= theta, 
             HJB_result = HJB_result,
             ce_calibrate = ce_calibrate,
             dist_result = dist_result,
             entry_rate=entry_rate,
             ave_size = ave_size,
-            TFP=TFP
+            b = b
     )
 end

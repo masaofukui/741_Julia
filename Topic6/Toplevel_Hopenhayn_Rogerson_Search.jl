@@ -21,12 +21,12 @@ fig_save = 0;
     Delta_z = diff(zg)
     Delta_n = diff(ng)
     alph = 0.64
-    cf = 0.1
+    cf = 0.0
     r = 0.05
     L = 1
     underJ = 0.0
-    xi = 1.1
-    ce = 0.5
+    xi = 10
+    ce = 30
     tilde_Delta_z = [ Delta_z[1]; [(Delta_z[i]+Delta_z[i+1])/2 for i in 1:(Jz-2)]; Delta_z[end]]
     n_start = 5
     tilde_psig_nz = entry_dist(xi,ng,zg,tilde_Delta_z,n_start);
@@ -36,10 +36,10 @@ fig_save = 0;
     T = length(tg)
     nu = Inf
     phi = 10
-    s = 0.1
-    kappa = 2
+    s = 0.2
+    kappa = 2.5
     Phi_fun = (v,n) -> phi/kappa .* (v./n).^kappa.*n
-    v_fun = (q_dS,n) -> (max.(q_dS,0) ./phi).^(1/(kappa-1)).*n 
+    v_fun = (value_hiring,n) -> (max.(value_hiring,0) ./phi).^(1/(kappa-1)).*n 
     eta = 0.5;
     qfun = (theta) -> theta.^(-eta)
     lambdafun = (theta) -> theta.^(1-eta)
@@ -56,12 +56,14 @@ include("subfunctions.jl")
 param = model()
 @unpack_model param
 theta = 1.0;
-U = 10
-HJB_result = solve_HJB_QVI(param,theta,U)
+U = 5
+HJB_result = solve_HJB_QVI(param,theta,U);
+plot(ng,HJB_result.S[:,10],lw=6)
+plot(zg,HJB_result.S[1,:],lw=6)
 
-ss_result = solve_w(param,calibration=1,tol=0.01)
+ss_result = solve_U_theta(param,U=U,calibration=1,tol=0.01);
 HJB_result = ss_result.HJB_result
-@unpack exit_or_not =HJB_result
+@unpack exit_or_not,dn,S,vacancy =HJB_result
 dist_result = ss_result.dist_result
 tildeg_nonuniform = ss_result.dist_result.tildeg_nonuniform
 tildeg_nonuniform_mat = reshape(tildeg_nonuniform,Jn,Jz)
@@ -69,6 +71,10 @@ tildeg_nonuniform_n = sum(tildeg_nonuniform_mat,dims=2)
 tildeg_nonuniform_z = sum(tildeg_nonuniform_mat,dims=1)'
 plot(log.(ng),(tildeg_nonuniform_n))
 plot(log.(zg),(tildeg_nonuniform_z))
+
+plot(log.(ng),(dn[:,1]./ng))
+plot(log.(ng),(vacancy[:,1]./ng))
+plot(log.(ng),(S[:,1]))
 
 tildeg_nonuniform_n = tildeg_nonuniform_n[:]
 G = reverse(cumsum(reverse(tildeg_nonuniform_n)))/sum(tildeg_nonuniform_n)

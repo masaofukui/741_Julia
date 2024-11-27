@@ -114,7 +114,7 @@ function optimal_firing(param,Sold,U; compute_policy=0)
             end
         end
     end
-    return (v = Snew, i_n_jump = i_n_jump, exit_or_not = exit_or_not)
+    return (S = Snew, i_n_jump = i_n_jump, exit_or_not = exit_or_not)
 end
 
 
@@ -132,7 +132,7 @@ function Howard_Algorithm(param,Az,pig,S_fire,theta,U;Sinit=0)
     S_adjust = max.(Sexit,S_fire)
     adj_or_not = []
     dn = zeros(Jn,Jz)
-    v = zeros(Jn,Jz)
+    vacancy = zeros(Jn,Jz)
     Phi = zeros(Jn,Jz)
     while iter < max_iter
         iter += 1
@@ -141,23 +141,23 @@ function Howard_Algorithm(param,Az,pig,S_fire,theta,U;Sinit=0)
         for i = 1:Jz
             dS_n_plus = (Sold[2:Jn,i] - Sold[1:(Jn-1),i])./ Delta_n
             dS_n_plus = [dS_n_plus;0]
-            value_hiring = qfun(theta).*dS_n_plus + qfun(theta).*Sold[:,i]./ng.*gamma
+            value_hiring = qfun(theta).*dS_n_plus - qfun(theta).*Sold[:,i]./ng.*gamma
             v_plus = v_fun.(value_hiring,ng)
             dn_plus = qfun.(theta).*v_plus - s.*ng
-            HF = -Phi_fun.(v_plus,ng) + dS_n_plus.*dn_plus
+            HF = -Phi_fun.(v_plus,ng) + dS_n_plus.*dn_plus - qfun(theta).*Sold[:,i]./ng.*gamma.*v_plus
 
             dS_n_minus = (Sold[2:Jn,i] - Sold[1:(Jn-1),i])./ Delta_n
             dS_n_minus = [0; dS_n_minus]
-            value_hiring = qfun(theta).*dS_n_minus + qfun(theta).*Sold[:,i]./ng.*gamma
+            value_hiring = qfun(theta).*dS_n_minus - qfun(theta).*Sold[:,i]./ng.*gamma
             v_minus = v_fun.(value_hiring,ng)
             dn_minus = qfun.(theta).*v_minus - s.*ng
-            HB = -Phi_fun.(v_plus,ng) + dS_n_minus.*dn_minus
+            HB = -Phi_fun.(v_plus,ng) + dS_n_minus.*dn_minus - qfun(theta).*Sold[:,i]./ng.*gamma.*v_minus
 
             
             dn[:,i] = dn_plus.*(dn_plus .> 0).*(dn_minus .> 0) + dn_plus.*(HF .> HB).*(dn_plus .> 0).*(dn_minus .< 0 ) + dn_minus.*(dn_minus .< 0 ).*(dn_plus .< 0 ) + dn_minus.*(HF .< HB).*(dn_plus .> 0).*(dn_minus .< 0 );
-            v[:,i] = (dn[:,i] + s.*ng)./qfun.(theta); 
-            Phi[:,i] = Phi_fun(v[:,i],ng)
-            diag_S[:,i] = v[:,i].*qfun.(theta)./ng.*gamma
+            vacancy[:,i] = (dn[:,i] + s.*ng)./qfun.(theta); 
+            Phi[:,i] = Phi_fun(vacancy[:,i],ng)
+            diag_S[:,i] = vacancy[:,i].*qfun.(theta)./ng.*gamma
 
         end
 
@@ -178,7 +178,7 @@ function Howard_Algorithm(param,Az,pig,S_fire,theta,U;Sinit=0)
         q = pig_g.*(1 .-adj_or_not) + S_adjust.*(adj_or_not)
         Snew = Btilde\q;
         Sdiff = maximum(abs.(Snew - Sold))
-        println("iter: ",iter," Sdiff: ",Sdiff)
+        #println("iter: ",iter," Sdiff: ",Sdiff)
         if Sdiff < 1e-4
             break
         end
@@ -188,7 +188,7 @@ function Howard_Algorithm(param,Az,pig,S_fire,theta,U;Sinit=0)
     end
     Snew = reshape(Snew,Jn,Jz)
     @assert iter < max_iter "Howard Algorithm did not converge"
-    return (S = Snew, dn = dn)
+    return (S = Snew, dn = dn,vacancy=vacancy)
 end
 
 
@@ -199,10 +199,11 @@ function solve_HJB_QVI(param,theta,U;max_iter_outer=100)
     S_fire_old = -1e10*ones(Jn*Jz);
     pig = [ zg[i_z].^(1-alph).*ng[i_n].^alph .- cf - r.*ng[i_n].*U for i_n = 1:Jn, i_z = 1:Jz]
     pig = reshape(pig,Jz*Jn)
-    v_fire_new = []
+    S_fire_new = []
     S_fire_new_mat = []
     iter = 0;
     dn = [];
+    vacancy = [];
     while iter < max_iter_outer
         if iter == 0
             Sinit = 0 
@@ -212,14 +213,16 @@ function solve_HJB_QVI(param,theta,U;max_iter_outer=100)
         result_hward = Howard_Algorithm(param,Az,pig,S_fire_old,theta,U, Sinit=Sinit)
         S = result_hward.S;
         dn = result_hward.dn;
+        vacancy = result_hward.vacancy;
         fire_result = optimal_firing(param,S,U)
-        S_fire_new_mat = fire_result.v;
+        S_fire_new_mat = fire_result.S;
         S_fire_new = reshape(S_fire_new_mat,Jn*Jz)
         Sdiff = maximum(abs.(S_fire_new - S_fire_old))
         if mod(iter,5) == 0
             println("outer loop iter: ",iter," Sdiff: ",Sdiff)
         end
         if Sdiff < 1e-4
+            println("outer loop iter: ",iter," Sdiff: ",Sdiff)
             break
         end
         S_fire_old = copy(S_fire_new)
@@ -230,7 +233,7 @@ function solve_HJB_QVI(param,theta,U;max_iter_outer=100)
     fire_result = optimal_firing(param,S_fire_new,U;compute_policy=1)
     i_n_jump = fire_result.i_n_jump
     exit_or_not = fire_result.exit_or_not
-    return (v = v_fire_new, dn = dn,i_n_jump=i_n_jump,exit_or_not=exit_or_not,pig=pig)
+    return (S = S_fire_new, dn = dn,i_n_jump=i_n_jump,exit_or_not=exit_or_not,pig=pig,vacancy=vacancy)
 end
 
 function compute_Sexit(param,U)
