@@ -16,6 +16,7 @@ The course covers heterogeneous firm models with a particular focus on the deter
 * Topic 4: Transition Dynamics without Free-entry (Auclert, Bardóczy, Rognlie, and Straub, 2021)
   * [Toplevel_Hopenhayn_Rogerson_sequence_space_Jacobian.jl](Topic4/Toplevel_Hopenhayn_Rogerson_sequence_space_Jacobian.jl): Top-level code to implement sequence-space Jacobian algorithms in Hopenhayn-Rogerson model.
 * Topic 5: Firm Dynamics with Labor Adjustment Costs (Hopenhayn and Rogerson, 1993)
+  * [Toplevel_Hopenhayn_Rogerson_Adj_Cost.jl](Topic5/Toplevel_Hopenhayn_Rogerson_Adj_Cost.jl): Top-level code to solve Hopenhyan-Rogerson model with hiring costs with an application of linear firing taxes. 
 * Topic 6: Firm Dynamics in a Frictional Labor Market (McCrary, 2024)
 
 
