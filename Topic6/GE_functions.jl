@@ -17,7 +17,7 @@ function solve_w(param; calibration=0,tol=1e-8 )
         else
             w = (w_ub + w_lb)/2
         end
-        HJB_result = solve_HJB_QVI(param,w)
+        HJB_result = solve_HJB_QVI(param,theta,U)
         v = HJB_result.v
         v_vec = reshape(v,Jn*Jz)
         if nu == Inf

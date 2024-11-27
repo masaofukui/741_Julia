@@ -92,138 +92,150 @@ function populate_An(param,dn)
     return An
 end
 
-function optimal_firing(param,vold,w; compute_policy=0)
-    vnew = copy(vold)
+function optimal_firing(param,Sold,U; compute_policy=0)
+    Snew = copy(Sold)
     @unpack_model param
     for i_n in eachindex(ng)
         for i_z in eachindex(zg)
-            firing_cost = tau_f*w*(ng[i_n] .- ng[1:i_n])
-            vnew[i_n,i_z] = maximum(vold[1:i_n,i_z]-firing_cost)
+            Snew[i_n,i_z] = maximum(Sold[1:i_n,i_z])
         end
     end
+    Sexit = compute_Sexit(param,U)
+    Sexit_mat = reshape(Sexit,Jn,Jz)
     i_n_jump = zeros(Int64,Jn,Jz)
     exit_or_not = zeros(Int64,Jn,Jz)
     if compute_policy == 1
         for i_n in eachindex(ng)
             for i_z in eachindex(zg)
-                firing_cost = tau_f*w*(ng[i_n] .- ng[1:i_n])
-                exit_or_not[i_n,i_z] = (underv >= vnew[i_n,i_z])
+                exit_or_not[i_n,i_z] = (Sexit_mat[i_n,i_z] >= Snew[i_n,i_z])
                 if exit_or_not[i_n,i_z] == 0
-                    i_n_jump[i_n,i_z] = findfirst(vold[1:i_n,i_z]-firing_cost .== vnew[i_n,i_z])
+                    i_n_jump[i_n,i_z] = findfirst(Sold[1:i_n,i_z] .== Snew[i_n,i_z])
                 end
             end
         end
     end
-    return (v = vnew, i_n_jump = i_n_jump, exit_or_not = exit_or_not)
+    return (v = Snew, i_n_jump = i_n_jump, exit_or_not = exit_or_not)
 end
 
 
-function Howard_Algorithm(param,Az,pig,v_fire;vinit=0)
+function Howard_Algorithm(param,Az,pig,S_fire,theta,U;Sinit=0)
     @unpack_model param
     iter = 0;
-    if vinit == 0
-        vold = reshape(pig,Jn,Jz)./r;
+    if Sinit == 0
+        Sold = reshape(pig,Jn,Jz)./r;
     else
-        vold = copy(vinit)
+        Sold = copy(Sinit)
     end
-    vnew = copy(vold);
+    Snew = copy(Sold);
     A = copy(Az);
-    v_adjust = max.(underv,v_fire)
+    Sexit = compute_Sexit(param,U)
+    S_adjust = max.(Sexit,S_fire)
     adj_or_not = []
     dn = zeros(Jn,Jz)
-    h = zeros(Jn,Jz)
-    g = zeros(Jn,Jz)
+    v = zeros(Jn,Jz)
+    Phi = zeros(Jn,Jz)
     while iter < max_iter
         iter += 1
 
-        
+        diag_S = zeros(Jn,Jz)
         for i = 1:Jz
-            dv_n_plus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
-            dv_n_plus = [dv_n_plus;0]
-            h_plus = h_fun.(dv_n_plus,ng)
-            dn_plus = h_plus - s.*ng
-            HF = -g_fun.(h_plus,ng) + dv_n_plus.*dn_plus
+            dS_n_plus = (Sold[2:Jn,i] - Sold[1:(Jn-1),i])./ Delta_n
+            dS_n_plus = [dS_n_plus;0]
+            value_hiring = qfun(theta).*dS_n_plus + qfun(theta).*Sold[:,i]./ng.*gamma
+            v_plus = v_fun.(value_hiring,ng)
+            dn_plus = qfun.(theta).*v_plus - s.*ng
+            HF = -Phi_fun.(v_plus,ng) + dS_n_plus.*dn_plus
 
-            dv_n_minus = (vold[2:Jn,i] - vold[1:(Jn-1),i])./ Delta_n
-            dv_n_minus = [0; dv_n_minus]
-            h_minus = h_fun.(dv_n_minus,ng)
-            dn_minus = h_minus - s.*ng
-            HB = -g_fun.(h_plus,ng) + dv_n_minus.*dn_minus
+            dS_n_minus = (Sold[2:Jn,i] - Sold[1:(Jn-1),i])./ Delta_n
+            dS_n_minus = [0; dS_n_minus]
+            value_hiring = qfun(theta).*dS_n_minus + qfun(theta).*Sold[:,i]./ng.*gamma
+            v_minus = v_fun.(value_hiring,ng)
+            dn_minus = qfun.(theta).*v_minus - s.*ng
+            HB = -Phi_fun.(v_plus,ng) + dS_n_minus.*dn_minus
 
             
             dn[:,i] = dn_plus.*(dn_plus .> 0).*(dn_minus .> 0) + dn_plus.*(HF .> HB).*(dn_plus .> 0).*(dn_minus .< 0 ) + dn_minus.*(dn_minus .< 0 ).*(dn_plus .< 0 ) + dn_minus.*(HF .< HB).*(dn_plus .> 0).*(dn_minus .< 0 );
-            h[:,i] = dn[:,i] + s.*ng; 
-            g[:,i] = g_fun(h[:,i],ng)
+            v[:,i] = (dn[:,i] + s.*ng)./qfun.(theta); 
+            Phi[:,i] = Phi_fun(v[:,i],ng)
+            diag_S[:,i] = v[:,i].*qfun.(theta)./ng.*gamma
 
         end
 
+        diag_S = reshape(diag_S,Jn*Jz)
         An = populate_An(param,dn);
         A = Az + An;
-        B = r*I - A;
-        h_vec = reshape(h,Jn*Jz)
-        g_vec = reshape(g,Jn*Jz)
-        pig_g = pig .- g_vec
-        vold = reshape(vold,Jz*Jn)
+        B = r*I + spdiagm(0=> diag_S) - A;
+        #B = r*I  - A;
+        Phi_vec = reshape(Phi,Jn*Jz)
+        pig_g = pig .- Phi_vec
+        Sold = reshape(Sold,Jz*Jn)
         
-        RHS_noadjust =  (B*vold .- pig_g);
-        RHS_adjust = vold  .- v_adjust
+        RHS_noadjust =  (B*Sold .- pig_g);
+        RHS_adjust = Sold  .- S_adjust
         adj_or_not =RHS_noadjust  .> RHS_adjust;
         D = spdiagm(0 => adj_or_not)
         Btilde = (I-D)*B + D
-        q = pig_g.*(1 .-adj_or_not) + v_adjust.*(adj_or_not)
-        vnew = Btilde\q;
-        vdiff = maximum(abs.(vnew - vold))
-        #println("iter: ",iter," vdiff: ",vdiff)
-        if vdiff < 1e-4
+        q = pig_g.*(1 .-adj_or_not) + S_adjust.*(adj_or_not)
+        Snew = Btilde\q;
+        Sdiff = maximum(abs.(Snew - Sold))
+        println("iter: ",iter," Sdiff: ",Sdiff)
+        if Sdiff < 1e-4
             break
         end
-        vold = copy(vnew)
-        vold = reshape(vold,Jn,Jz)
+        Sold = copy(Snew)
+        Sold = reshape(Sold,Jn,Jz)
         
     end
-    vnew = reshape(vnew,Jn,Jz)
+    Snew = reshape(Snew,Jn,Jz)
     @assert iter < max_iter "Howard Algorithm did not converge"
-    return (v = vnew, dn = dn)
+    return (S = Snew, dn = dn)
 end
 
 
 
-function solve_HJB_QVI(param,w;max_iter_outer=100)
+function solve_HJB_QVI(param,theta,U;max_iter_outer=100)
     @unpack_model param
     Az = populate_Az(param)
-    v_fire_old = -1e10*ones(Jn*Jz);
-    pig = [ zg[i_z].^(1-alph).*ng[i_n].^alph .- w.*ng[i_n] .- cf for i_n = 1:Jn, i_z = 1:Jz]
+    S_fire_old = -1e10*ones(Jn*Jz);
+    pig = [ zg[i_z].^(1-alph).*ng[i_n].^alph .- cf - r.*ng[i_n].*U for i_n = 1:Jn, i_z = 1:Jz]
     pig = reshape(pig,Jz*Jn)
     v_fire_new = []
-    v_fire_new_mat = []
+    S_fire_new_mat = []
     iter = 0;
     dn = [];
     while iter < max_iter_outer
         if iter == 0
-            vinit = 0 
+            Sinit = 0 
         else
-            vinit = v_fire_new_mat
+            Sinit = S_fire_new_mat
         end
-        result_hward = Howard_Algorithm(param,Az,pig,v_fire_old,vinit=vinit)
-        v = result_hward.v;
+        result_hward = Howard_Algorithm(param,Az,pig,S_fire_old,theta,U, Sinit=Sinit)
+        S = result_hward.S;
         dn = result_hward.dn;
-        fire_result = optimal_firing(param,v,w)
-        v_fire_new_mat = fire_result.v;
-        v_fire_new = reshape(v_fire_new_mat,Jn*Jz)
-        vdiff = maximum(abs.(v_fire_new - v_fire_old))
+        fire_result = optimal_firing(param,S,U)
+        S_fire_new_mat = fire_result.v;
+        S_fire_new = reshape(S_fire_new_mat,Jn*Jz)
+        Sdiff = maximum(abs.(S_fire_new - S_fire_old))
         if mod(iter,5) == 0
-            println("outer loop iter: ",iter," vdiff: ",vdiff)
+            println("outer loop iter: ",iter," Sdiff: ",Sdiff)
         end
-        if vdiff < 1e-4
+        if Sdiff < 1e-4
             break
         end
-        v_fire_old = copy(v_fire_new)
+        S_fire_old = copy(S_fire_new)
         iter +=1
     end
     @assert iter < max_iter_outer "Outer loop did not converge"
-    v_fire_new = reshape(v_fire_new,Jn,Jz)
-    fire_result = optimal_firing(param,v_fire_new,w;compute_policy=1)
+    S_fire_new = reshape(S_fire_new,Jn,Jz)
+    fire_result = optimal_firing(param,S_fire_new,U;compute_policy=1)
     i_n_jump = fire_result.i_n_jump
     exit_or_not = fire_result.exit_or_not
     return (v = v_fire_new, dn = dn,i_n_jump=i_n_jump,exit_or_not=exit_or_not,pig=pig)
+end
+
+function compute_Sexit(param,U)
+    @unpack_model param
+    ng_repeat = repeat(ng,Jz)
+    Sexit = underJ .+ng_repeat.*U
+    return Sexit
 end

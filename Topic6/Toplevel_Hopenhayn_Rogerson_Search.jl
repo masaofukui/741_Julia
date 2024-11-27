@@ -24,7 +24,7 @@ fig_save = 0;
     cf = 0.1
     r = 0.05
     L = 1
-    underv = 0.0
+    underJ = 0.0
     xi = 1.1
     ce = 0.5
     tilde_Delta_z = [ Delta_z[1]; [(Delta_z[i]+Delta_z[i+1])/2 for i in 1:(Jz-2)]; Delta_z[end]]
@@ -36,11 +36,14 @@ fig_save = 0;
     T = length(tg)
     nu = Inf
     phi = 10
-    s = 0.00
+    s = 0.1
     kappa = 2
-    tau_f = 0.0
-    g_fun = (h,n) -> phi/kappa .* (h./n).^kappa.*n
-    h_fun = (dv,n) -> (max.(dv,0) ./phi).^(1/(kappa-1)).*n 
+    Phi_fun = (v,n) -> phi/kappa .* (v./n).^kappa.*n
+    v_fun = (q_dS,n) -> (max.(q_dS,0) ./phi).^(1/(kappa-1)).*n 
+    eta = 0.5;
+    qfun = (theta) -> theta.^(-eta)
+    lambdafun = (theta) -> theta.^(1-eta)
+    gamma = 0.5
 end
 
 
@@ -52,6 +55,10 @@ include("subfunctions.jl")
 
 param = model()
 @unpack_model param
+theta = 1.0;
+U = 10
+HJB_result = solve_HJB_QVI(param,theta,U)
+
 ss_result = solve_w(param,calibration=1,tol=0.01)
 HJB_result = ss_result.HJB_result
 @unpack exit_or_not =HJB_result
