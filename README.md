@@ -18,5 +18,5 @@ The course covers heterogeneous firm models with a particular focus on the deter
 * Topic 5: Firm Dynamics with Labor Adjustment Costs (Hopenhayn and Rogerson, 1993)
   * [Toplevel_Hopenhayn_Rogerson_Adj_Cost.jl](Topic5/Toplevel_Hopenhayn_Rogerson_Adj_Cost.jl): Top-level code to solve Hopenhyan-Rogerson model with hiring costs with an application of firing taxes. 
 * Topic 6: Firm Dynamics in a Frictional Labor Market (McCrary, 2024)
-
+  * [Toplevel_Hopenhayn_Rogerson_Search.jl](Topic6/Toplevel_Hopenhayn_Rogerson_Search.jl): Top-level code solve Hopenhyan-Rogerson model with search frictions. The code works under the calibrated parameter values. Counterfactual analysis is working in progress.
 
